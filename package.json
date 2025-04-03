@@ -3,19 +3,22 @@
   "version": "1.0.0",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
     "dev": "nodemon src/index.js",
-    "build": "npm install"
+    "build": "echo 'Build completed'"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "API para scraping de anúncios do Airbnb",
   "dependencies": {
+    "@sparticuz/chromium": "^133.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "puppeteer": "13.5.0"
+    "puppeteer": "13.5.0",
+    "puppeteer-core": "^24.6.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
