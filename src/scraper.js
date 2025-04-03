@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium-min');
 
 // Helper function for timeout that works regardless of Puppeteer version
 const safeWaitForTimeout = async (page, timeout) => {
@@ -15,10 +16,15 @@ async function scrapeAirbnb(url, step = 1) {
     try {
         console.log(`Iniciando scraping da URL: ${url}, Etapa: ${step}`);
 
-        // Iniciar browser com configuração específica
+        // Iniciar browser com configuração específica para ambientes serverless
+        const executablePath = await chromium.executablePath();
+
+        console.log(`Usando caminho do Chrome: ${executablePath}`);
+
         const browser = await puppeteer.launch({
-            headless: true,
+            headless: chromium.headless,
             args: [
+                ...chromium.args,
                 '--disable-web-security',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -29,7 +35,8 @@ async function scrapeAirbnb(url, step = 1) {
                 '--single-process',
                 '--disable-gpu'
             ],
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium'
+            executablePath: executablePath,
+            ignoreHTTPSErrors: true
         });
 
         console.log('Browser iniciado com sucesso');
