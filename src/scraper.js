@@ -6,9 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const { execSync } = require('child_process');
 
-// Pasta temporária para armazenar o Chromium
-const CHROME_PATH = '/tmp/chromium';
-const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || '/tmp/puppeteer_cache';
+// Configuração dos diretórios para o Puppeteer
+const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '..', '.cache', 'puppeteer');
 
 // Configuração para o Chrome no ambiente serverless
 chrome.setHeadlessMode = true;
@@ -53,20 +52,19 @@ function cleanAirbnbUrl(url) {
 // Função para garantir que o Chrome está instalado
 async function ensureChrome() {
     try {
-        // Garantir que os diretórios necessários existam
-        const tmpDir = '/tmp';
-        if (!fs.existsSync(tmpDir)) {
-            fs.mkdirSync(tmpDir, { recursive: true });
-        }
+        console.log('Verificando configurações do Puppeteer...');
+        console.log(`PUPPETEER_CACHE_DIR: ${PUPPETEER_CACHE_DIR}`);
 
+        // Garantir que o diretório de cache existe
         if (!fs.existsSync(PUPPETEER_CACHE_DIR)) {
+            console.log(`Criando diretório de cache: ${PUPPETEER_CACHE_DIR}`);
             fs.mkdirSync(PUPPETEER_CACHE_DIR, { recursive: true });
         }
 
-        // Definir variáveis de ambiente necessárias para o puppeteer
+        // Definir variável de ambiente para o Puppeteer
         process.env.PUPPETEER_CACHE_DIR = PUPPETEER_CACHE_DIR;
 
-        // Obter o caminho do executável do Chrome
+        // Obter o caminho do executável
         const execPath = await chrome.executablePath;
         console.log('Caminho do executável Chrome:', execPath);
 
@@ -75,27 +73,6 @@ async function ensureChrome() {
         if (!fs.existsSync(execDir)) {
             console.log(`Criando diretório para o Chrome: ${execDir}`);
             fs.mkdirSync(execDir, { recursive: true });
-        }
-
-        // Verificar se o Chrome está instalado no caminho
-        if (!fs.existsSync(execPath)) {
-            console.log('Chrome não encontrado, baixando...');
-            // No ambiente Render, podemos usar um script do sistema para instalar o Chromium
-            if (process.env.RENDER) {
-                try {
-                    console.log('Instalando Chrome no ambiente Render...');
-                    // Definir permissões adequadas para o diretório tmp
-                    execSync('chmod -R 777 /tmp');
-                    // Baixar Chromium diretamente usando a API do @sparticuz/chromium
-                    await chrome.font();
-                    console.log('Chrome instalado com sucesso no ambiente Render');
-                } catch (installError) {
-                    console.error('Erro ao instalar Chrome:', installError);
-                    throw installError;
-                }
-            }
-        } else {
-            console.log('Chrome já existe em:', execPath);
         }
 
         // Configurar a variável de ambiente PUPPETEER_EXECUTABLE_PATH

@@ -11,13 +11,13 @@ services:
       - key: RENDER
         value: "true"
       - key: PUPPETEER_CACHE_DIR
-        value: /tmp/puppeteer_cache
+        value: /opt/render/project/.cache/puppeteer
     scaling:
       minInstances: 1
       maxInstances: 1
     disk:
       name: chromium-cache
-      mountPath: /tmp
+      mountPath: /opt/render/project/.cache
       sizeGB: 1
     healthCheckPath: /
     buildFilter:

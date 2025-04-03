@@ -6,7 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "nodemon src/index.js",
-    "build": "node -e \"console.log('Preparando ambiente para Puppeteer no Render');\" && mkdir -p /tmp && chmod -R 777 /tmp"
+    "build": "node -e \"console.log('Preparando ambiente para Puppeteer no Render');\""
   },
   "keywords": [],
   "author": "",
