@@ -64,8 +64,9 @@ async function ensureChrome() {
         // Definir variável de ambiente para o Puppeteer
         process.env.PUPPETEER_CACHE_DIR = PUPPETEER_CACHE_DIR;
 
-        // Obter o caminho do executável
-        const execPath = await chrome.executablePath;
+        // Obter o caminho do executável (corrigir para chamar a função)
+        console.log('Obtendo caminho do Chrome...');
+        const execPath = await chrome.executablePath();
         console.log('Caminho do executável Chrome:', execPath);
 
         // Verificar se o diretório do executável existe
