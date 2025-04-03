@@ -492,104 +492,72 @@ async function scrapeAirbnb(url, step = 1) {
         else if (step === 4) {
             console.log('Executando Etapa 4: Fotos do imóvel');
 
-            // Configurar para permitir imagens
-            await page.setRequestInterception(false);
+            try {
+                // Remover o event listener de interceptação para evitar problemas
+                await page.setRequestInterception(false);
 
-            // Recarregar a página para obter as imagens
-            await page.goto(cleanUrl, { waitUntil: 'networkidle0' });
+                // Recarregar a página para obter as imagens
+                await page.goto(cleanUrl, { waitUntil: 'domcontentloaded' });
 
-            // Dar tempo para a página carregar
-            await safeWaitForTimeout(page, 5000);
+                // Dar tempo para a página carregar
+                await safeWaitForTimeout(page, 5000);
 
-            const imageUrls = new Set();
+                // Extrair URLs de imagem diretamente do DOM
+                const pagePicturesData = await page.evaluate(() => {
+                    const pictures = [];
 
-            // Método 1: Registrar as imagens que estão sendo carregadas
-            page.on('response', async (response) => {
-                const url = response.url();
-                const contentType = response.headers()['content-type'] || '';
-
-                if (contentType.includes('image/')) {
-                    try {
-                        const urlObj = new URL(url);
-
-                        // Ignorar ícones e imagens pequenas
-                        if (url.includes('icon') || url.includes('small')) {
-                            return;
+                    // Procurar tags de imagem com atributos relevantes
+                    const imgElements = document.querySelectorAll('img');
+                    imgElements.forEach(img => {
+                        const src = img.src || '';
+                        if (src &&
+                            (src.includes('picture') || src.includes('photo') || src.includes('image')) &&
+                            !src.includes('icon') &&
+                            !src.includes('small') &&
+                            !src.includes('profile') &&
+                            img.width > 200) { // Filtrar imagens pequenas
+                            pictures.push(src);
                         }
+                    });
 
-                        // Para imagens do Airbnb, manter apenas as de alta qualidade
-                        if ((urlObj.hostname.includes('airbnb') || urlObj.hostname.includes('muscache')) &&
-                            (url.includes('picture') || url.includes('photo') || url.includes('image'))) {
-                            imageUrls.add(url);
+                    // Procurar divs de background com estilos inline contendo url()
+                    const allElements = document.querySelectorAll('div[style*="background"]');
+                    allElements.forEach(div => {
+                        const style = div.getAttribute('style') || '';
+                        const match = style.match(/url\(['"]?(.*?)['"]?\)/);
+                        if (match && match[1]) {
+                            const url = match[1];
+                            if (url &&
+                                (url.includes('picture') || url.includes('photo') || url.includes('image')) &&
+                                !url.includes('icon') &&
+                                !url.includes('small')) {
+                                pictures.push(url);
+                            }
                         }
-                    } catch (e) {
-                        // Erro ao processar URL
-                    }
-                }
-            });
+                    });
 
-            // Método 2: Extrair URLs de imagem diretamente do DOM
-            const pagePicturesData = await page.evaluate(() => {
-                const pictures = [];
-
-                // Procurar tags de imagem com atributos relevantes
-                const imgElements = document.querySelectorAll('img');
-                imgElements.forEach(img => {
-                    const src = img.src || '';
-                    if (src &&
-                        (src.includes('picture') || src.includes('photo') || src.includes('image')) &&
-                        !src.includes('icon') &&
-                        !src.includes('small') &&
-                        !src.includes('profile') &&
-                        img.width > 200) { // Filtrar imagens pequenas
-                        pictures.push(src);
-                    }
+                    return pictures;
                 });
 
-                // Procurar divs de background com estilos inline contendo url()
-                const allElements = document.querySelectorAll('div[style*="background"]');
-                allElements.forEach(div => {
-                    const style = div.getAttribute('style') || '';
-                    const match = style.match(/url\(['"]?(.*?)['"]?\)/);
-                    if (match && match[1]) {
-                        const url = match[1];
-                        if (url &&
-                            (url.includes('picture') || url.includes('photo') || url.includes('image')) &&
-                            !url.includes('icon') &&
-                            !url.includes('small')) {
-                            pictures.push(url);
-                        }
-                    }
+                // Remover duplicatas e filtrar imagens
+                const uniquePhotos = [...new Set(pagePicturesData)].filter(url => {
+                    // Remover imagens de perfil, ícones e outros recursos indesejados
+                    return !url.includes('profile') &&
+                        !url.includes('user') &&
+                        !url.includes('icon') &&
+                        url.length > 20;
                 });
 
-                return pictures;
-            });
-
-            // Aguardar mais um pouco para garantir que as respostas de imagem sejam capturadas
-            await safeWaitForTimeout(page, 3000);
-
-            // Combinar os dois métodos de extração de imagens
-            const photos = Array.from(imageUrls);
-
-            // Adicionar as imagens encontradas no DOM
-            pagePicturesData.forEach(url => {
-                if (!photos.includes(url)) {
-                    photos.push(url);
-                }
-            });
-
-            // Remover duplicatas e filtrar imagens
-            const uniquePhotos = [...new Set(photos)].filter(url => {
-                // Remover imagens de perfil, ícones e outros recursos indesejados
-                return !url.includes('profile') &&
-                    !url.includes('user') &&
-                    !url.includes('icon') &&
-                    url.length > 20;
-            });
-
-            result.data = { photos: uniquePhotos };
-            result.status = 'success';
-            result.message = `Fotos extraídas com sucesso: ${uniquePhotos.length} imagens encontradas`;
+                result.data = { photos: uniquePhotos };
+                result.status = 'success';
+                result.message = `Fotos extraídas com sucesso: ${uniquePhotos.length} imagens encontradas`;
+            } catch (photoError) {
+                console.error('Erro ao extrair fotos:', photoError);
+                result.status = 'error';
+                result.message = `Erro ao extrair fotos: ${photoError.message}`;
+                result.data = { photos: [] }; // Array vazio como fallback
+                // Não relançar o erro para permitir que o processamento continue
+            }
         }
 
         return result;
