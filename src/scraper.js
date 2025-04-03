@@ -1,5 +1,7 @@
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium-min');
+const { existsSync } = require('fs');
+const { join } = require('path');
 
 // Helper function for timeout that works regardless of Puppeteer version
 const safeWaitForTimeout = async (page, timeout) => {
@@ -11,6 +13,60 @@ const safeWaitForTimeout = async (page, timeout) => {
     }
 };
 
+// Função para encontrar o executável do Chrome
+async function findChromePath() {
+    try {
+        // Primeira opção: usar chromium-min
+        const chromiumPath = await chromium.executablePath().catch(() => null);
+        if (chromiumPath && existsSync(chromiumPath)) {
+            console.log(`Encontrado chromium-min em: ${chromiumPath}`);
+            return chromiumPath;
+        }
+
+        // Segunda opção: procurar o chrome no playwright-core
+        try {
+            const playwright = require('playwright-core');
+            if (playwright && playwright.chromium) {
+                const playwrightPath = playwright.chromium.executablePath();
+                if (existsSync(playwrightPath)) {
+                    console.log(`Encontrado playwright chromium em: ${playwrightPath}`);
+                    return playwrightPath;
+                }
+            }
+        } catch (playwrightError) {
+            console.error('Erro ao usar playwright-core:', playwrightError);
+        }
+
+        // Opções de fallback
+        const possiblePaths = [
+            // Linux
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome',
+            // MacOS
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            // Windows
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+            // Render.com path
+            '/opt/render/project/.render/chrome/opt/google/chrome/chrome'
+        ];
+
+        for (const path of possiblePaths) {
+            if (existsSync(path)) {
+                console.log(`Encontrado Chrome em caminho padrão: ${path}`);
+                return path;
+            }
+        }
+
+        console.error('Não foi possível encontrar um executável Chrome válido');
+        return null;
+    } catch (error) {
+        console.error('Erro ao procurar caminho do Chrome:', error);
+        return null;
+    }
+}
+
 // Função principal de scraping
 async function scrapeAirbnb(url, step = 1) {
     let browser = null;
@@ -18,18 +74,20 @@ async function scrapeAirbnb(url, step = 1) {
     try {
         console.log(`Iniciando scraping da URL: ${url}, Etapa: ${step}`);
 
+        // Encontrar o caminho do executável do Chrome
+        const executablePath = await findChromePath();
+
+        if (!executablePath) {
+            throw new Error('Não foi possível encontrar um executável Chrome válido. Abortando scraping.');
+        }
+
+        console.log(`Usando caminho do Chrome: ${executablePath}`);
+
         // Iniciar browser com configuração específica para ambientes serverless
         try {
-            const executablePath = await chromium.executablePath();
-
-            console.log(`Usando caminho do Chrome: ${executablePath}`);
-            console.log('Versão do chromium:', chromium.version);
-            console.log('Argumentos do chromium:', chromium.args.join(' '));
-
             browser = await puppeteer.launch({
-                headless: chromium.headless,
+                headless: 'new',
                 args: [
-                    ...chromium.args,
                     '--disable-web-security',
                     '--no-sandbox',
                     '--disable-setuid-sandbox',

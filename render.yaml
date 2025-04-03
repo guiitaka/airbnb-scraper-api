@@ -9,7 +9,11 @@ services:
       - key: NODE_ENV
         value: production
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
+        value: "true"
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: "/tmp"
+      - key: DEBUG
+        value: "pw:api"
     scaling:
       minInstances: 1
       maxInstances: 1
