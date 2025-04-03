@@ -13,33 +13,43 @@ const safeWaitForTimeout = async (page, timeout) => {
 
 // Função principal de scraping
 async function scrapeAirbnb(url, step = 1) {
+    let browser = null;
+
     try {
         console.log(`Iniciando scraping da URL: ${url}, Etapa: ${step}`);
 
         // Iniciar browser com configuração específica para ambientes serverless
-        const executablePath = await chromium.executablePath();
+        try {
+            const executablePath = await chromium.executablePath();
 
-        console.log(`Usando caminho do Chrome: ${executablePath}`);
+            console.log(`Usando caminho do Chrome: ${executablePath}`);
+            console.log('Versão do chromium:', chromium.version);
+            console.log('Argumentos do chromium:', chromium.args.join(' '));
 
-        const browser = await puppeteer.launch({
-            headless: chromium.headless,
-            args: [
-                ...chromium.args,
-                '--disable-web-security',
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu'
-            ],
-            executablePath: executablePath,
-            ignoreHTTPSErrors: true
-        });
+            browser = await puppeteer.launch({
+                headless: chromium.headless,
+                args: [
+                    ...chromium.args,
+                    '--disable-web-security',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-gpu'
+                ],
+                executablePath: executablePath,
+                ignoreHTTPSErrors: true
+            });
 
-        console.log('Browser iniciado com sucesso');
+            console.log('Browser iniciado com sucesso');
+        } catch (browserError) {
+            console.error('Erro ao iniciar o browser:', browserError);
+            throw new Error(`Falha ao iniciar o navegador: ${browserError.message}`);
+        }
+
         const page = await browser.newPage();
 
         // Timeout para caso a página não carregue
@@ -333,11 +343,20 @@ async function scrapeAirbnb(url, step = 1) {
             result.message = 'Fotos extraídas com sucesso';
         }
 
-        await browser.close();
         return result;
     } catch (error) {
         console.error('Erro durante o scraping:', error);
         throw error;
+    } finally {
+        // Sempre fechar o browser para evitar memory leaks
+        if (browser) {
+            try {
+                await browser.close();
+                console.log('Browser fechado com sucesso');
+            } catch (closeError) {
+                console.error('Erro ao fechar o browser:', closeError);
+            }
+        }
     }
 }
 

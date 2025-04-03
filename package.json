@@ -5,8 +5,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "postinstall": "node node_modules/@sparticuz/chromium-min/bin/install.js",
-    "build": "npm run postinstall"
+    "build": "npm install && node ./install-chromium.js"
   },
   "keywords": [],
   "author": "",
