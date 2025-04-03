@@ -8,9 +8,37 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Middleware
-app.use(cors());
+// Middleware - Configuração de CORS melhorada
+app.use(cors({
+    origin: ['https://www.yallah.com.br', 'https://yallah.com.br', 'http://localhost:3000', 'https://yallah-website.vercel.app'],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86400 // 24 horas em segundos
+}));
 app.use(express.json());
+
+// Adicionar headers CORS manualmente para garantir
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && (
+        origin.includes('yallah.com.br') ||
+        origin.includes('localhost') ||
+        origin.includes('yallah-website.vercel.app')
+    )) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    // Responder imediatamente às requisições OPTIONS (pre-flight)
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    next();
+});
 
 // Rota de status da API
 app.get('/', (req, res) => {
