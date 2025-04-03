@@ -3,18 +3,16 @@ services:
     name: airbnb-scraper-api
     env: node
     plan: free
-    buildCommand: npm run build
+    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: AWS_LAMBDA_FUNCTION_NAME
-        value: "true"
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: "true"
-      - key: DEBUG
-        value: "puppeteer:*,-puppeteer:protocol"
     scaling:
       minInstances: 1
       maxInstances: 1
+    disk:
+      name: chromium-cache
+      mountPath: /tmp/puppeteer_cache
+      sizeGB: 1
     healthCheckPath: / 

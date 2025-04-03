@@ -1,13 +1,9 @@
-// Usar puppeteer-extra com plugins
-const puppeteerExtra = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const chromium = require('chrome-aws-lambda');
-const puppeteerCore = require('puppeteer-core');
-const { existsSync } = require('fs');
-const { join } = require('path');
+// Usar puppeteer regular que já inclui o Chromium
+const puppeteer = require('puppeteer');
+const path = require('path');
 
-// Registrar o plugin stealth para evitar detecção
-puppeteerExtra.use(StealthPlugin());
+// Definir pasta de cache para o Chromium
+const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || '/tmp/puppeteer_cache';
 
 // Helper function for timeout that works regardless of Puppeteer version
 const safeWaitForTimeout = async (page, timeout) => {
@@ -19,119 +15,27 @@ const safeWaitForTimeout = async (page, timeout) => {
     }
 };
 
-// Função para encontrar o executável do Chrome
-async function getBrowser() {
-    console.log('Ambiente: ' + process.env.NODE_ENV);
-    console.log('Iniciando configuração do browser...');
-
-    try {
-        let executablePath;
-        let args = [
-            '--disable-web-security',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu',
-            '--disable-extensions',
-            '--disable-background-networking',
-            '--disable-default-apps',
-            '--disable-sync',
-            '--disable-translate',
-            '--hide-scrollbars',
-            '--metrics-recording-only',
-            '--mute-audio',
-            '--no-first-run',
-            '--safebrowsing-disable-auto-update'
-        ];
-
-        // Configurações específicas para ambiente de produção (Render.com)
-        if (process.env.NODE_ENV === 'production') {
-            console.log('Usando configuração para ambiente de produção (Render.com)');
-
-            try {
-                console.log('Tentando carregar chrome-aws-lambda...');
-                executablePath = await chromium.executablePath;
-
-                if (executablePath) {
-                    console.log(`Chrome AWS Lambda encontrado em: ${executablePath}`);
-                } else {
-                    console.log('Chrome AWS Lambda não retornou um caminho de executável');
-                }
-
-                // Usar configurações recomendadas do chrome-aws-lambda
-                args = chromium.args;
-
-                return await puppeteerExtra.launch({
-                    args,
-                    executablePath,
-                    headless: chromium.headless,
-                    ignoreHTTPSErrors: true,
-                    dumpio: true // Adicionar este para logs mais detalhados
-                });
-            } catch (error) {
-                console.error('Erro ao usar chrome-aws-lambda:', error);
-            }
-        }
-
-        // Fallback para ambiente de desenvolvimento ou se o chrome-aws-lambda falhar
-        console.log('Usando configuração para ambiente de desenvolvimento');
-
-        // Caminho padrão do Chrome em diferentes sistemas
-        const possiblePaths = [
-            // Linux
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/google-chrome',
-            // MacOS
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            // Windows
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            // Render.com path
-            '/opt/render/project/.render/chrome/opt/google/chrome/chrome'
-        ];
-
-        for (const path of possiblePaths) {
-            if (existsSync(path)) {
-                console.log(`Usando Chrome do caminho local: ${path}`);
-                executablePath = path;
-                break;
-            }
-        }
-
-        if (!executablePath) {
-            console.warn('Nenhum Chrome encontrado localmente, tentando usar o padrão do sistema');
-        }
-
-        return await puppeteerExtra.launch({
-            args,
-            executablePath,
-            headless: true,
-            ignoreHTTPSErrors: true
-        });
-    } catch (error) {
-        console.error('Erro fatal ao inicializar o browser:', error);
-        throw new Error(`Não foi possível inicializar o browser: ${error.message}`);
-    }
-}
-
 // Função principal de scraping
 async function scrapeAirbnb(url, step = 1) {
     let browser = null;
 
     try {
         console.log(`Iniciando scraping da URL: ${url}, Etapa: ${step}`);
+        console.log(`Usando pasta de cache: ${PUPPETEER_CACHE_DIR}`);
 
-        // Obter o browser
-        browser = await getBrowser();
-
-        if (!browser) {
-            throw new Error('Não foi possível inicializar o browser');
-        }
+        // Iniciar o browser usando puppeteer normal (que já inclui Chromium)
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--window-size=1920,1080'
+            ],
+            userDataDir: PUPPETEER_CACHE_DIR
+        });
 
         console.log('Browser iniciado com sucesso');
 
