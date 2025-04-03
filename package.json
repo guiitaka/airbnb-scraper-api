@@ -6,7 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "nodemon src/index.js",
-    "build": "echo 'Build completed without downloading Chromium - it will be downloaded at runtime'"
+    "build": "node -e \"console.log('Preparando ambiente para Puppeteer no Render');\" && mkdir -p /tmp && chmod -R 777 /tmp"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +20,8 @@
     "puppeteer": "13.5.0",
     "puppeteer-core": "^24.6.0",
     "fs-extra": "^11.1.1",
-    "lambdafs": "^2.1.1"
+    "lambdafs": "^2.1.1",
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

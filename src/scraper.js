@@ -4,6 +4,7 @@ const chrome = require('@sparticuz/chromium');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { execSync } = require('child_process');
 
 // Pasta temporária para armazenar o Chromium
 const CHROME_PATH = '/tmp/chromium';
@@ -52,19 +53,53 @@ function cleanAirbnbUrl(url) {
 // Função para garantir que o Chrome está instalado
 async function ensureChrome() {
     try {
-        if (fs.existsSync(CHROME_PATH)) {
-            console.log('Chrome já existe em:', CHROME_PATH);
-            return CHROME_PATH;
+        // Garantir que os diretórios necessários existam
+        const tmpDir = '/tmp';
+        if (!fs.existsSync(tmpDir)) {
+            fs.mkdirSync(tmpDir, { recursive: true });
         }
 
-        console.log('Chrome não encontrado, iniciando download...');
+        if (!fs.existsSync(PUPPETEER_CACHE_DIR)) {
+            fs.mkdirSync(PUPPETEER_CACHE_DIR, { recursive: true });
+        }
 
-        // Definir variáveis de ambiente necessárias
-        process.env.PUPPETEER_EXECUTABLE_PATH = CHROME_PATH;
+        // Definir variáveis de ambiente necessárias para o puppeteer
+        process.env.PUPPETEER_CACHE_DIR = PUPPETEER_CACHE_DIR;
 
-        // Obter e armazenar o caminho do executável
+        // Obter o caminho do executável do Chrome
         const execPath = await chrome.executablePath;
-        console.log('Caminho do executável:', execPath);
+        console.log('Caminho do executável Chrome:', execPath);
+
+        // Verificar se o diretório do executável existe
+        const execDir = path.dirname(execPath);
+        if (!fs.existsSync(execDir)) {
+            console.log(`Criando diretório para o Chrome: ${execDir}`);
+            fs.mkdirSync(execDir, { recursive: true });
+        }
+
+        // Verificar se o Chrome está instalado no caminho
+        if (!fs.existsSync(execPath)) {
+            console.log('Chrome não encontrado, baixando...');
+            // No ambiente Render, podemos usar um script do sistema para instalar o Chromium
+            if (process.env.RENDER) {
+                try {
+                    console.log('Instalando Chrome no ambiente Render...');
+                    // Definir permissões adequadas para o diretório tmp
+                    execSync('chmod -R 777 /tmp');
+                    // Baixar Chromium diretamente usando a API do @sparticuz/chromium
+                    await chrome.font();
+                    console.log('Chrome instalado com sucesso no ambiente Render');
+                } catch (installError) {
+                    console.error('Erro ao instalar Chrome:', installError);
+                    throw installError;
+                }
+            }
+        } else {
+            console.log('Chrome já existe em:', execPath);
+        }
+
+        // Configurar a variável de ambiente PUPPETEER_EXECUTABLE_PATH
+        process.env.PUPPETEER_EXECUTABLE_PATH = execPath;
 
         return execPath;
     } catch (error) {
@@ -87,8 +122,9 @@ async function scrapeAirbnb(url, step = 1) {
         const isServerless = process.env.RENDER || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
         console.log(`Ambiente serverless: ${isServerless ? 'Sim' : 'Não'}`);
 
-        // Carregar o Chrome/Chromium na inicialização
-        await ensureChrome();
+        // Garantir que o Chrome esteja disponível
+        const executablePath = await ensureChrome();
+        console.log(`Usando Chrome em: ${executablePath}`);
 
         // Argumentos compartilhados para o puppeteer
         const browserArgs = [
@@ -111,11 +147,11 @@ async function scrapeAirbnb(url, step = 1) {
 
         try {
             // Inicializar o navegador usando a biblioteca @sparticuz/chromium
-            console.log('Inicializando navegador com chrome-aws-lambda...');
+            console.log('Inicializando navegador...');
             browser = await puppeteer.launch({
                 args: [...chrome.args, ...browserArgs],
-                executablePath: await chrome.executablePath,
-                headless: chrome.headless,
+                executablePath: executablePath,
+                headless: true,
                 ignoreHTTPSErrors: true
             });
         } catch (chromeError) {

@@ -8,11 +8,20 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: RENDER
+        value: "true"
+      - key: PUPPETEER_CACHE_DIR
+        value: /tmp/puppeteer_cache
     scaling:
       minInstances: 1
       maxInstances: 1
     disk:
       name: chromium-cache
-      mountPath: /tmp/puppeteer_cache
+      mountPath: /tmp
       sizeGB: 1
-    healthCheckPath: / 
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - src/**
+        - package.json
+        - package-lock.json 
