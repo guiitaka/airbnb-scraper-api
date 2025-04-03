@@ -8,12 +8,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: AWS_LAMBDA_FUNCTION_NAME
+        value: "true"
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: "/tmp"
       - key: DEBUG
-        value: "pw:api"
+        value: "puppeteer:*,-puppeteer:protocol"
     scaling:
       minInstances: 1
       maxInstances: 1

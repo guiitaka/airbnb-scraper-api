@@ -4,58 +4,60 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-console.log('Iniciando instalação do Chromium...');
+console.log('Iniciando configuração do ambiente de scraping...');
 
-// Função para instalar Chromium
-async function installChromium() {
+// Função para configurar ambiente
+async function configureEnvironment() {
     try {
-        // Verificar se o módulo já está instalado
-        const chromium = require('@sparticuz/chromium-min');
+        console.log('Verificando chrome-aws-lambda...');
 
-        console.log('Módulo chromium-min carregado com sucesso');
-
-        // Certificar-se de que os diretórios necessários existam
-        const modulePath = path.dirname(require.resolve('@sparticuz/chromium-min/package.json'));
-        const binPath = path.join(modulePath, 'bin');
-
-        console.log(`Caminho do módulo: ${modulePath}`);
-        console.log(`Caminho dos binários: ${binPath}`);
-
-        // Criar diretório bin se não existir
-        if (!fs.existsSync(binPath)) {
-            console.log(`Criando diretório: ${binPath}`);
-            fs.mkdirSync(binPath, { recursive: true });
-        }
-
-        // Instalar versão específica do Chromium
-        console.log('Baixando Chromium via npm...');
+        // Verificar se o módulo foi instalado corretamente
         try {
-            execSync('npm install playwright-core@1.35.0', { stdio: 'inherit' });
-            console.log('Chromium instalado via playwright-core');
-        } catch (npmError) {
-            console.error('Erro ao instalar playwright-core:', npmError);
+            const chromium = require('chrome-aws-lambda');
+            console.log('chrome-aws-lambda carregado com sucesso');
+
+            // Verificar versão
+            console.log('Versão do chromium: ' + (chromium.version || 'Não disponível'));
+        } catch (error) {
+            console.error('Erro ao carregar chrome-aws-lambda:', error);
         }
 
-        console.log('Chromium instalado com sucesso!');
+        // Verificar puppeteer-extra
+        try {
+            const puppeteerExtra = require('puppeteer-extra');
+            console.log('puppeteer-extra carregado com sucesso');
+        } catch (error) {
+            console.error('Erro ao carregar puppeteer-extra:', error);
+        }
+
+        // Verificar puppeteer-extra-plugin-stealth
+        try {
+            const stealthPlugin = require('puppeteer-extra-plugin-stealth');
+            console.log('puppeteer-extra-plugin-stealth carregado com sucesso');
+        } catch (error) {
+            console.error('Erro ao carregar puppeteer-extra-plugin-stealth:', error);
+        }
+
+        console.log('Configuração concluída com sucesso!');
         return true;
     } catch (error) {
-        console.error('Erro ao instalar Chromium:', error);
+        console.error('Erro durante a configuração:', error);
         return false;
     }
 }
 
-// Executar a função de instalação
-installChromium()
+// Executar a função de configuração
+configureEnvironment()
     .then((success) => {
         if (success) {
-            console.log('Processo de instalação concluído com sucesso');
+            console.log('Processo de configuração concluído com sucesso');
             process.exit(0);
         } else {
-            console.error('Falha no processo de instalação');
+            console.error('Falha no processo de configuração');
             process.exit(1);
         }
     })
     .catch(err => {
-        console.error('Falha no processo de instalação:', err);
+        console.error('Falha no processo de configuração:', err);
         process.exit(1);
     }); 

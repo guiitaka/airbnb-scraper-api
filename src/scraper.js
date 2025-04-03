@@ -1,7 +1,13 @@
-const puppeteer = require('puppeteer-core');
-const chromium = require('@sparticuz/chromium-min');
+// Usar puppeteer-extra com plugins
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const chromium = require('chrome-aws-lambda');
+const puppeteerCore = require('puppeteer-core');
 const { existsSync } = require('fs');
 const { join } = require('path');
+
+// Registrar o plugin stealth para evitar detecção
+puppeteerExtra.use(StealthPlugin());
 
 // Helper function for timeout that works regardless of Puppeteer version
 const safeWaitForTimeout = async (page, timeout) => {
@@ -14,30 +20,67 @@ const safeWaitForTimeout = async (page, timeout) => {
 };
 
 // Função para encontrar o executável do Chrome
-async function findChromePath() {
+async function getBrowser() {
+    console.log('Ambiente: ' + process.env.NODE_ENV);
+    console.log('Iniciando configuração do browser...');
+
     try {
-        // Primeira opção: usar chromium-min
-        const chromiumPath = await chromium.executablePath().catch(() => null);
-        if (chromiumPath && existsSync(chromiumPath)) {
-            console.log(`Encontrado chromium-min em: ${chromiumPath}`);
-            return chromiumPath;
-        }
+        let executablePath;
+        let args = [
+            '--disable-web-security',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-sync',
+            '--disable-translate',
+            '--hide-scrollbars',
+            '--metrics-recording-only',
+            '--mute-audio',
+            '--no-first-run',
+            '--safebrowsing-disable-auto-update'
+        ];
 
-        // Segunda opção: procurar o chrome no playwright-core
-        try {
-            const playwright = require('playwright-core');
-            if (playwright && playwright.chromium) {
-                const playwrightPath = playwright.chromium.executablePath();
-                if (existsSync(playwrightPath)) {
-                    console.log(`Encontrado playwright chromium em: ${playwrightPath}`);
-                    return playwrightPath;
+        // Configurações específicas para ambiente de produção (Render.com)
+        if (process.env.NODE_ENV === 'production') {
+            console.log('Usando configuração para ambiente de produção (Render.com)');
+
+            try {
+                console.log('Tentando carregar chrome-aws-lambda...');
+                executablePath = await chromium.executablePath;
+
+                if (executablePath) {
+                    console.log(`Chrome AWS Lambda encontrado em: ${executablePath}`);
+                } else {
+                    console.log('Chrome AWS Lambda não retornou um caminho de executável');
                 }
+
+                // Usar configurações recomendadas do chrome-aws-lambda
+                args = chromium.args;
+
+                return await puppeteerExtra.launch({
+                    args,
+                    executablePath,
+                    headless: chromium.headless,
+                    ignoreHTTPSErrors: true,
+                    dumpio: true // Adicionar este para logs mais detalhados
+                });
+            } catch (error) {
+                console.error('Erro ao usar chrome-aws-lambda:', error);
             }
-        } catch (playwrightError) {
-            console.error('Erro ao usar playwright-core:', playwrightError);
         }
 
-        // Opções de fallback
+        // Fallback para ambiente de desenvolvimento ou se o chrome-aws-lambda falhar
+        console.log('Usando configuração para ambiente de desenvolvimento');
+
+        // Caminho padrão do Chrome em diferentes sistemas
         const possiblePaths = [
             // Linux
             '/usr/bin/chromium',
@@ -54,16 +97,25 @@ async function findChromePath() {
 
         for (const path of possiblePaths) {
             if (existsSync(path)) {
-                console.log(`Encontrado Chrome em caminho padrão: ${path}`);
-                return path;
+                console.log(`Usando Chrome do caminho local: ${path}`);
+                executablePath = path;
+                break;
             }
         }
 
-        console.error('Não foi possível encontrar um executável Chrome válido');
-        return null;
+        if (!executablePath) {
+            console.warn('Nenhum Chrome encontrado localmente, tentando usar o padrão do sistema');
+        }
+
+        return await puppeteerExtra.launch({
+            args,
+            executablePath,
+            headless: true,
+            ignoreHTTPSErrors: true
+        });
     } catch (error) {
-        console.error('Erro ao procurar caminho do Chrome:', error);
-        return null;
+        console.error('Erro fatal ao inicializar o browser:', error);
+        throw new Error(`Não foi possível inicializar o browser: ${error.message}`);
     }
 }
 
@@ -74,39 +126,14 @@ async function scrapeAirbnb(url, step = 1) {
     try {
         console.log(`Iniciando scraping da URL: ${url}, Etapa: ${step}`);
 
-        // Encontrar o caminho do executável do Chrome
-        const executablePath = await findChromePath();
+        // Obter o browser
+        browser = await getBrowser();
 
-        if (!executablePath) {
-            throw new Error('Não foi possível encontrar um executável Chrome válido. Abortando scraping.');
+        if (!browser) {
+            throw new Error('Não foi possível inicializar o browser');
         }
 
-        console.log(`Usando caminho do Chrome: ${executablePath}`);
-
-        // Iniciar browser com configuração específica para ambientes serverless
-        try {
-            browser = await puppeteer.launch({
-                headless: 'new',
-                args: [
-                    '--disable-web-security',
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-gpu'
-                ],
-                executablePath: executablePath,
-                ignoreHTTPSErrors: true
-            });
-
-            console.log('Browser iniciado com sucesso');
-        } catch (browserError) {
-            console.error('Erro ao iniciar o browser:', browserError);
-            throw new Error(`Falha ao iniciar o navegador: ${browserError.message}`);
-        }
+        console.log('Browser iniciado com sucesso');
 
         const page = await browser.newPage();
 
