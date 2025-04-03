@@ -5,8 +5,13 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-// Definir pasta de cache para o Chromium
+// Pasta temporária para armazenar o Chromium
+const CHROME_PATH = '/tmp/chromium';
 const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || '/tmp/puppeteer_cache';
+
+// Configuração para o Chrome no ambiente serverless
+chrome.setHeadlessMode = true;
+chrome.setGraphicsMode = false;
 
 // Helper function for timeout that works regardless of Puppeteer version
 const safeWaitForTimeout = async (page, timeout) => {
@@ -44,6 +49,30 @@ function cleanAirbnbUrl(url) {
     }
 }
 
+// Função para garantir que o Chrome está instalado
+async function ensureChrome() {
+    try {
+        if (fs.existsSync(CHROME_PATH)) {
+            console.log('Chrome já existe em:', CHROME_PATH);
+            return CHROME_PATH;
+        }
+
+        console.log('Chrome não encontrado, iniciando download...');
+
+        // Definir variáveis de ambiente necessárias
+        process.env.PUPPETEER_EXECUTABLE_PATH = CHROME_PATH;
+
+        // Obter e armazenar o caminho do executável
+        const execPath = await chrome.executablePath;
+        console.log('Caminho do executável:', execPath);
+
+        return execPath;
+    } catch (error) {
+        console.error('Erro ao garantir Chrome:', error);
+        throw error;
+    }
+}
+
 // Função principal de scraping
 async function scrapeAirbnb(url, step = 1) {
     let browser = null;
@@ -53,88 +82,53 @@ async function scrapeAirbnb(url, step = 1) {
         const cleanUrl = cleanAirbnbUrl(url);
 
         console.log(`Iniciando scraping da URL: ${cleanUrl}, Etapa: ${step}`);
-        console.log(`Usando pasta de cache: ${PUPPETEER_CACHE_DIR}`);
 
-        // Configuração específica para ambientes serverless (como Render, Vercel, etc)
+        // Determinar o ambiente (serverless ou local)
         const isServerless = process.env.RENDER || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-        console.log(`Ambiente serverless detectado: ${isServerless ? 'Sim' : 'Não'}`);
+        console.log(`Ambiente serverless: ${isServerless ? 'Sim' : 'Não'}`);
 
-        // Opções padrão para o puppeteer
-        const launchOptions = {
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu',
-                '--disable-extensions',
-                '--disable-component-extensions-with-background-pages',
-                '--disable-default-apps',
-                '--mute-audio',
-                '--no-default-browser-check',
-                '--no-first-run',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding',
-                '--disable-background-timer-throttling',
-                '--disable-ipc-flooding-protection'
-            ],
-            ignoreHTTPSErrors: true
-        };
+        // Carregar o Chrome/Chromium na inicialização
+        await ensureChrome();
 
-        if (isServerless) {
-            console.log('Usando configuração especial para ambiente serverless');
+        // Argumentos compartilhados para o puppeteer
+        const browserArgs = [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--disable-extensions',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-default-apps',
+            '--mute-audio',
+            '--no-default-browser-check',
+            '--no-first-run',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-background-timer-throttling',
+            '--disable-ipc-flooding-protection'
+        ];
 
-            // Configuração especial para @sparticuz/chromium em ambiente serverless
-            try {
-                // Forçar o download do Chromium na inicialização
-                chrome.setHeadlessMode = true;
-                chrome.setGraphicsMode = false;
+        try {
+            // Inicializar o navegador usando a biblioteca @sparticuz/chromium
+            console.log('Inicializando navegador com chrome-aws-lambda...');
+            browser = await puppeteer.launch({
+                args: [...chrome.args, ...browserArgs],
+                executablePath: await chrome.executablePath,
+                headless: chrome.headless,
+                ignoreHTTPSErrors: true
+            });
+        } catch (chromeError) {
+            console.error('Erro ao inicializar browser com chrome-aws-lambda:', chromeError);
 
-                // Pré-baixar o Chromium para garantir que esteja disponível
-                await chrome.font();
-
-                const executablePath = await chrome.executablePath;
-                console.log(`Caminho do executável do Chromium: ${executablePath}`);
-
-                // Verificar se o executável realmente existe
-                if (fs.existsSync(executablePath)) {
-                    console.log('Chromium encontrado no caminho especificado.');
-                } else {
-                    console.log(`Chromium NÃO encontrado em ${executablePath}. Tentando método alternativo...`);
-
-                    // Tentar baixar manualmente se necessário
-                    await chrome.ensureChromium();
-                }
-
-                // Configurar as opções de lançamento para o ambiente serverless
-                browser = await puppeteer.launch({
-                    args: [...chrome.args, ...launchOptions.args],
-                    executablePath: await chrome.executablePath,
-                    headless: chrome.headless,
-                    ignoreHTTPSErrors: true
-                });
-
-            } catch (chromeError) {
-                console.error('Erro ao configurar Chromium serverless:', chromeError);
-
-                // Fallback para Puppeteer regular
-                console.log('Tentando fallback para puppeteer normal');
-                const puppeteerRegular = require('puppeteer');
-                browser = await puppeteerRegular.launch(launchOptions);
-            }
-        } else {
-            // Em ambiente local, usar puppeteer regular
-            console.log('Usando puppeteer em ambiente local');
-            const puppeteerRegular = require('puppeteer');
-
-            // Adicionar opções adicionais para ambiente local
-            const localOptions = {
-                ...launchOptions,
-                userDataDir: PUPPETEER_CACHE_DIR
-            };
-
-            browser = await puppeteerRegular.launch(localOptions);
+            // Tentar com puppeteer padrão como fallback
+            console.log('Tentando inicializar com puppeteer padrão...');
+            const puppeteerFallback = require('puppeteer');
+            browser = await puppeteerFallback.launch({
+                args: browserArgs,
+                headless: true,
+                ignoreHTTPSErrors: true
+            });
         }
 
         console.log('Browser iniciado com sucesso');

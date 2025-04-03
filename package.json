@@ -6,7 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "nodemon src/index.js",
-    "build": "npm install && npx @sparticuz/chromium@133.0.0 --download"
+    "build": "echo 'Build completed without downloading Chromium - it will be downloaded at runtime'"
   },
   "keywords": [],
   "author": "",
