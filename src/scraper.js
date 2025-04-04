@@ -10,7 +10,7 @@ const { execSync } = require('child_process');
 const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '..', '.cache', 'puppeteer');
 
 // Configuração para o Chrome no ambiente serverless
-chrome.setHeadlessMode = true;
+chrome.headless = true;
 chrome.setGraphicsMode = false;
 
 // Helper function for timeout that works regardless of Puppeteer version
@@ -129,7 +129,7 @@ async function scrapeAirbnb(url, step = 1) {
             browser = await puppeteer.launch({
                 args: [...chrome.args, ...browserArgs],
                 executablePath: executablePath,
-                headless: true,
+                headless: 'new',
                 ignoreHTTPSErrors: true
             });
         } catch (chromeError) {
@@ -140,7 +140,7 @@ async function scrapeAirbnb(url, step = 1) {
             const puppeteerFallback = require('puppeteer');
             browser = await puppeteerFallback.launch({
                 args: browserArgs,
-                headless: true,
+                headless: 'new',
                 ignoreHTTPSErrors: true
             });
         }
@@ -156,7 +156,20 @@ async function scrapeAirbnb(url, step = 1) {
         await page.setViewport({ width: 1920, height: 1080 });
 
         // User agent moderno para evitar detecção
-        await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+
+        // Adicionar extra headers para evitar detecção
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-User': '?1',
+            'Sec-Fetch-Dest': 'document',
+            'sec-ch-ua': '"Chromium";v="121", "Google Chrome";v="121", "Not=A?Brand";v="99"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"'
+        });
 
         // Interceptar requisições de imagem para melhorar performance
         await page.setRequestInterception(true);
@@ -176,13 +189,22 @@ async function scrapeAirbnb(url, step = 1) {
                 console.log('Acessando a página...');
                 // Usar o domainBypassCookies para ajudar com problemas de bloqueio do Cloudflare
                 await page.goto(cleanUrl, {
-                    waitUntil: 'domcontentloaded', // Mudar para um método mais rápido de carregamento
+                    waitUntil: 'networkidle2', // Aguardar até que a rede esteja quase inativa
                     timeout: 100000 // 100 segundos específicos para esta operação
                 });
                 console.log('Conteúdo DOM inicial carregado, aguardando mais recursos...');
 
-                // Esperar um pouco mais para scripts terminarem de carregar
-                await safeWaitForTimeout(page, 5000);
+                // Aguardar pelo conteúdo dinâmico ser carregado
+                try {
+                    // Tentar aguardar pelo título do anúncio (elemento sempre presente)
+                    await page.waitForSelector('h1', { timeout: 10000 });
+                    console.log('Título da página detectado');
+                } catch (err) {
+                    console.warn('Timeout ao aguardar pelo título, continuando mesmo assim...');
+                }
+
+                // Aguardar mais um pouco para renderização completa
+                await safeWaitForTimeout(page, 8000);
 
                 console.log('Página carregada, extraindo dados...');
                 resolve();

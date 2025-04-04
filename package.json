@@ -17,7 +17,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "puppeteer": "13.5.0",
+    "puppeteer": "^19.7.0",
     "puppeteer-core": "^24.6.0",
     "fs-extra": "^11.1.1",
     "lambdafs": "^2.1.1",
