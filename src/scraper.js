@@ -1,64 +1,14 @@
-// Configuração principal do scraper
-let puppeteer;
-let chrome;
-
-// Verificar se estamos no ambiente Render
-const isRenderEnvironment = process.env.RENDER === 'true';
-
-try {
-    // No ambiente Render, use diretamente o puppeteer padrão
-    if (isRenderEnvironment) {
-        console.log('Ambiente Render detectado, usando puppeteer padrão');
-        puppeteer = require('puppeteer');
-        chrome = { args: [], headless: true }; // Objeto fictício para compatibilidade
-    } else {
-        // Em ambiente local, tente usar puppeteer-core (mais leve)
-        puppeteer = require('puppeteer-core');
-        console.log('Usando puppeteer-core');
-
-        // Carregar @sparticuz/chromium para ambientes serverless
-        try {
-            chrome = require('@sparticuz/chromium');
-            console.log('Usando @sparticuz/chromium para ambientes serverless');
-        } catch (chromeError) {
-            console.warn('Erro ao carregar @sparticuz/chromium:', chromeError.message);
-            chrome = { args: [], headless: true }; // Fornecer um objeto padrão
-        }
-    }
-} catch (puppeteerCoreError) {
-    // Fallback para puppeteer padrão
-    console.warn('Erro ao carregar puppeteer-core, utilizando puppeteer padrão:', puppeteerCoreError.message);
-    puppeteer = require('puppeteer');
-    console.log('Usando puppeteer padrão');
-    chrome = { args: [], headless: true }; // Fornecer um objeto padrão
-}
-
+// Usar puppeteer para web scraping
+const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
-const { execSync } = require('child_process');
 
 // Configuração dos diretórios para o Puppeteer
 const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '..', '.cache', 'puppeteer');
 
-// Configuração para o Chrome no ambiente serverless
-if (chrome) {
-    chrome.headless = true;
-    if (typeof chrome.setGraphicsMode === 'function') {
-        chrome.setGraphicsMode(false);
-    } else {
-        chrome.setGraphicsMode = false;
-    }
-}
-
-// Helper function for timeout that works regardless of Puppeteer version
+// Helper function para timeout
 const safeWaitForTimeout = async (page, timeout) => {
-    if (typeof page.waitForTimeout === 'function') {
-        await page.waitForTimeout(timeout);
-    } else {
-        // Fallback if waitForTimeout is not available
-        await new Promise(resolve => setTimeout(resolve, timeout));
-    }
+    await new Promise(resolve => setTimeout(resolve, timeout));
 };
 
 // Função para limpar e simplificar a URL do Airbnb antes do scraping
@@ -87,80 +37,6 @@ function cleanAirbnbUrl(url) {
     }
 }
 
-// Função para obter o caminho do Chrome como string
-async function getChromeExecutablePath() {
-    if (!chrome) return null;
-
-    try {
-        if (typeof chrome.executablePath === 'function') {
-            return await chrome.executablePath();
-        } else if (typeof chrome.executablePath === 'string') {
-            return chrome.executablePath;
-        } else {
-            console.warn('chrome.executablePath não é um tipo válido (nem função, nem string):', typeof chrome.executablePath);
-            return null;
-        }
-    } catch (error) {
-        console.error('Erro ao obter o caminho executável do Chrome:', error);
-        return null;
-    }
-}
-
-// Função para garantir que o Chrome está instalado
-async function ensureChrome() {
-    try {
-        console.log('Verificando configurações do Puppeteer...');
-        console.log(`PUPPETEER_CACHE_DIR: ${PUPPETEER_CACHE_DIR}`);
-
-        // Garantir que o diretório de cache existe
-        if (!fs.existsSync(PUPPETEER_CACHE_DIR)) {
-            console.log(`Criando diretório de cache: ${PUPPETEER_CACHE_DIR}`);
-            fs.mkdirSync(PUPPETEER_CACHE_DIR, { recursive: true });
-        }
-
-        // Definir variável de ambiente para o Puppeteer
-        process.env.PUPPETEER_CACHE_DIR = PUPPETEER_CACHE_DIR;
-
-        // Obter o caminho do executável
-        console.log('Obtendo caminho do Chrome...');
-        try {
-            // Usar a função helper para obter o caminho como string
-            const execPath = await getChromeExecutablePath();
-
-            if (!execPath) {
-                console.log('Caminho do executável não disponível, usando padrão de puppeteer');
-                return null;
-            }
-
-            console.log('Caminho do executável Chrome:', execPath);
-
-            // Verificar se o diretório do executável existe
-            const execDir = path.dirname(execPath);
-            if (!fs.existsSync(execDir)) {
-                console.log(`Criando diretório para o Chrome: ${execDir}`);
-                fs.mkdirSync(execDir, { recursive: true });
-            }
-
-            // Configurar a variável de ambiente PUPPETEER_EXECUTABLE_PATH
-            process.env.PUPPETEER_EXECUTABLE_PATH = execPath;
-
-            return execPath;
-        } catch (execPathError) {
-            console.error('Erro ao obter caminho do executável:', execPathError);
-            // Fallback para o caminho padrão em produção na Render
-            if (process.env.RENDER) {
-                const defaultPath = '/usr/bin/google-chrome-stable';
-                console.log(`Usando caminho padrão do Chrome: ${defaultPath}`);
-                return defaultPath;
-            }
-            return null;
-        }
-    } catch (error) {
-        console.error('Erro ao garantir Chrome:', error);
-        return null;
-    }
-}
-
 // Função principal de scraping
 async function scrapeAirbnb(url, step = 1) {
     let browser = null;
@@ -168,40 +44,15 @@ async function scrapeAirbnb(url, step = 1) {
     try {
         // Limpar a URL para melhorar as chances de carregamento
         const cleanUrl = cleanAirbnbUrl(url);
-
         console.log(`Iniciando scraping da URL: ${cleanUrl}, Etapa: ${step}`);
 
-        // Determinar o ambiente (serverless ou local)
-        const isServerless = process.env.RENDER || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-        console.log(`Ambiente serverless: ${isServerless ? 'Sim' : 'Não'}`);
-
-        // Configuração específica para o ambiente Render
-        if (process.env.RENDER) {
-            console.log('Detectado ambiente Render - configurando ambiente específico...');
-            // Em vez de usar Chrome pré-instalado (que requer root), usar o Chromium do Puppeteer
-            process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = false; // Garantir que o Chromium seja baixado
-            console.log('Usando Chromium do Puppeteer no Render');
-
-            // No ambiente Render, usar Puppeteer normal
-            console.log('Usando puppeteer normal em vez de puppeteer-core no Render...');
-            puppeteer = require('puppeteer');
+        // Garantir que o diretório de cache existe
+        if (!fs.existsSync(PUPPETEER_CACHE_DIR)) {
+            console.log(`Criando diretório de cache: ${PUPPETEER_CACHE_DIR}`);
+            fs.mkdirSync(PUPPETEER_CACHE_DIR, { recursive: true });
         }
 
-        // Garantir que o Chrome esteja disponível - mas não lançar erro se falhar
-        let executablePath = null;
-        try {
-            executablePath = await ensureChrome();
-            if (executablePath) {
-                console.log(`Usando Chrome em: ${executablePath}`);
-            } else {
-                console.log('Sem caminho do Chrome disponível, vamos usar o Chromium padrão do Puppeteer');
-            }
-        } catch (execError) {
-            console.warn('Falha ao obter caminho do Chrome:', execError);
-            console.log('Tentando usar o Chrome do puppeteer padrão...');
-        }
-
-        // Argumentos compartilhados para o puppeteer
+        // Argumentos padrão para o browser
         const browserArgs = [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -209,74 +60,24 @@ async function scrapeAirbnb(url, step = 1) {
             '--disable-accelerated-2d-canvas',
             '--disable-gpu',
             '--disable-extensions',
-            '--disable-component-extensions-with-background-pages',
             '--disable-default-apps',
             '--mute-audio',
             '--no-default-browser-check',
             '--no-first-run',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-background-timer-throttling',
-            '--disable-ipc-flooding-protection'
         ];
 
-        try {
-            console.log('Inicializando navegador...');
-
-            // Configuração de lançamento do browser
-            const launchOptions = {
-                args: browserArgs,
-                headless: 'new',
-                ignoreHTTPSErrors: true
-            };
-
-            // Adicionar args do chrome se disponíveis
-            if (chrome && chrome.args && Array.isArray(chrome.args)) {
-                launchOptions.args = [...chrome.args, ...browserArgs];
-            }
-
-            // Adicionar executablePath apenas se for uma string válida
-            if (executablePath && typeof executablePath === 'string') {
-                launchOptions.executablePath = executablePath;
-                console.log(`Configurando Chrome com caminho executável: ${executablePath}`);
-            } else {
-                console.log('Usando Chrome bundled com Puppeteer');
-            }
-
-            // No Render, sempre usar puppeteer (não puppeteer-core)
-            if (process.env.RENDER) {
-                console.log('Ambiente Render: usando puppeteer padrão');
-                browser = await puppeteer.launch(launchOptions);
-            } else {
-                // Em outros ambientes
-                browser = await puppeteer.launch(launchOptions);
-            }
-        } catch (chromeError) {
-            console.error('Erro ao inicializar browser:', chromeError);
-
-            // Tentar com puppeteer padrão como fallback final
-            console.log('Tentando inicializar com puppeteer padrão como fallback final...');
-            try {
-                const puppeteerFallback = require('puppeteer');
-                browser = await puppeteerFallback.launch({
-                    args: browserArgs,
-                    headless: 'new',
-                    ignoreHTTPSErrors: true
-                });
-            } catch (fallbackError) {
-                console.error('Erro ao inicializar com puppeteer padrão:', fallbackError);
-                throw new Error(`Falha ao inicializar qualquer browser: ${chromeError.message} / ${fallbackError.message}`);
-            }
-        }
+        // Inicializar o navegador de forma simplificada
+        console.log('Inicializando navegador...');
+        browser = await puppeteer.launch({
+            args: browserArgs,
+            headless: 'new',
+            ignoreHTTPSErrors: true
+        });
 
         console.log('Browser iniciado com sucesso');
 
         const page = await browser.newPage();
-
-        // Aumentar o timeout para navegação
         await page.setDefaultNavigationTimeout(120000); // 2 minutos
-
-        // Configurar viewport com tamanho grande para garantir que imagens lazy-loaded sejam carregadas
         await page.setViewport({ width: 1920, height: 1080 });
 
         // User agent moderno para evitar detecção
@@ -307,43 +108,22 @@ async function scrapeAirbnb(url, step = 1) {
             }
         });
 
-        // Definir um timeout para a navegação
-        const navigationPromise = new Promise(async (resolve, reject) => {
-            try {
-                console.log('Acessando a página...');
-                // Usar o domainBypassCookies para ajudar com problemas de bloqueio do Cloudflare
-                await page.goto(cleanUrl, {
-                    waitUntil: 'networkidle2', // Aguardar até que a rede esteja quase inativa
-                    timeout: 100000 // 100 segundos específicos para esta operação
-                });
-                console.log('Conteúdo DOM inicial carregado, aguardando mais recursos...');
-
-                // Aguardar pelo conteúdo dinâmico ser carregado
-                try {
-                    // Tentar aguardar pelo título do anúncio (elemento sempre presente)
-                    await page.waitForSelector('h1', { timeout: 10000 });
-                    console.log('Título da página detectado');
-                } catch (err) {
-                    console.warn('Timeout ao aguardar pelo título, continuando mesmo assim...');
-                }
-
-                // Aguardar mais um pouco para renderização completa
-                await safeWaitForTimeout(page, 8000);
-
-                console.log('Página carregada, extraindo dados...');
-                resolve();
-            } catch (e) {
-                reject(e);
-            }
+        console.log('Acessando a página...');
+        await page.goto(cleanUrl, {
+            waitUntil: 'networkidle2',
+            timeout: 120000
         });
 
-        // Definir um timeout absoluto
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout ao carregar a página')), 110000)
-        );
+        console.log('Aguardando carregamento da página...');
+        try {
+            await page.waitForSelector('h1', { timeout: 20000 });
+            console.log('Título da página detectado');
+        } catch (err) {
+            console.warn('Timeout ao aguardar pelo título, continuando mesmo assim...');
+        }
 
-        // Esperar pela navegação com timeout
-        await Promise.race([navigationPromise, timeoutPromise]);
+        await safeWaitForTimeout(page, 8000);
+        console.log('Página carregada, extraindo dados...');
 
         let result = {
             status: 'partial',
