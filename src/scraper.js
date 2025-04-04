@@ -64,22 +64,37 @@ async function ensureChrome() {
         // Definir variável de ambiente para o Puppeteer
         process.env.PUPPETEER_CACHE_DIR = PUPPETEER_CACHE_DIR;
 
-        // Obter o caminho do executável (corrigir para chamar a função)
+        // Obter o caminho do executável
         console.log('Obtendo caminho do Chrome...');
-        const execPath = await chrome.executablePath();
-        console.log('Caminho do executável Chrome:', execPath);
+        try {
+            // Verificar se executablePath é uma função e chamá-la
+            const execPath = typeof chrome.executablePath === 'function'
+                ? await chrome.executablePath()
+                : chrome.executablePath;
 
-        // Verificar se o diretório do executável existe
-        const execDir = path.dirname(execPath);
-        if (!fs.existsSync(execDir)) {
-            console.log(`Criando diretório para o Chrome: ${execDir}`);
-            fs.mkdirSync(execDir, { recursive: true });
+            console.log('Caminho do executável Chrome:', execPath);
+
+            // Verificar se o diretório do executável existe
+            const execDir = path.dirname(execPath);
+            if (!fs.existsSync(execDir)) {
+                console.log(`Criando diretório para o Chrome: ${execDir}`);
+                fs.mkdirSync(execDir, { recursive: true });
+            }
+
+            // Configurar a variável de ambiente PUPPETEER_EXECUTABLE_PATH
+            process.env.PUPPETEER_EXECUTABLE_PATH = execPath;
+
+            return execPath;
+        } catch (execPathError) {
+            console.error('Erro ao obter caminho do executável:', execPathError);
+            // Fallback para o caminho padrão em produção na Render
+            if (process.env.RENDER) {
+                const defaultPath = '/usr/bin/google-chrome-stable';
+                console.log(`Usando caminho padrão do Chrome: ${defaultPath}`);
+                return defaultPath;
+            }
+            throw execPathError;
         }
-
-        // Configurar a variável de ambiente PUPPETEER_EXECUTABLE_PATH
-        process.env.PUPPETEER_EXECUTABLE_PATH = execPath;
-
-        return execPath;
     } catch (error) {
         console.error('Erro ao garantir Chrome:', error);
         throw error;
@@ -99,6 +114,14 @@ async function scrapeAirbnb(url, step = 1) {
         // Determinar o ambiente (serverless ou local)
         const isServerless = process.env.RENDER || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
         console.log(`Ambiente serverless: ${isServerless ? 'Sim' : 'Não'}`);
+
+        // Configuração específica para o ambiente Render
+        if (process.env.RENDER) {
+            console.log('Detectado ambiente Render - configurando ambiente específico...');
+            // No Render, podemos usar o chrome-stable pré-instalado
+            process.env.PUPPETEER_EXECUTABLE_PATH = '/usr/bin/google-chrome-stable';
+            console.log('Usando Chrome pré-instalado no Render:', process.env.PUPPETEER_EXECUTABLE_PATH);
+        }
 
         // Garantir que o Chrome esteja disponível
         const executablePath = await ensureChrome();
@@ -126,6 +149,27 @@ async function scrapeAirbnb(url, step = 1) {
         try {
             // Inicializar o navegador usando a biblioteca @sparticuz/chromium
             console.log('Inicializando navegador...');
+
+            // Verificar que o executablePath é uma string válida
+            if (!executablePath || typeof executablePath !== 'string') {
+                console.error('Caminho do executável inválido:', executablePath);
+                throw new Error('Caminho do executável do Chrome é inválido ou não está disponível');
+            }
+
+            console.log(`Tentando iniciar Chrome em: ${executablePath}`);
+
+            // Verificar se o arquivo do Chrome existe
+            if (fs.existsSync(executablePath)) {
+                console.log('O arquivo do Chrome existe!');
+            } else {
+                console.warn('O arquivo do Chrome NÃO existe no caminho especificado.');
+                if (process.env.RENDER) {
+                    // Em produção na Render, usar caminho padrão como fallback
+                    executablePath = '/usr/bin/google-chrome-stable';
+                    console.log(`Usando caminho alternativo: ${executablePath}`);
+                }
+            }
+
             browser = await puppeteer.launch({
                 args: [...chrome.args, ...browserArgs],
                 executablePath: executablePath,
@@ -137,12 +181,17 @@ async function scrapeAirbnb(url, step = 1) {
 
             // Tentar com puppeteer padrão como fallback
             console.log('Tentando inicializar com puppeteer padrão...');
-            const puppeteerFallback = require('puppeteer');
-            browser = await puppeteerFallback.launch({
-                args: browserArgs,
-                headless: 'new',
-                ignoreHTTPSErrors: true
-            });
+            try {
+                const puppeteerFallback = require('puppeteer');
+                browser = await puppeteerFallback.launch({
+                    args: browserArgs,
+                    headless: 'new',
+                    ignoreHTTPSErrors: true
+                });
+            } catch (fallbackError) {
+                console.error('Erro ao inicializar com puppeteer padrão:', fallbackError);
+                throw new Error(`Falha ao inicializar qualquer browser: ${chromeError.message} / ${fallbackError.message}`);
+            }
         }
 
         console.log('Browser iniciado com sucesso');
