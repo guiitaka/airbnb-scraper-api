@@ -1,17 +1,19 @@
 services:
   - type: web
-    name: airbnb-scraper-api
+    name: airbnb-scraper
     env: node
     plan: free
-    buildCommand: npm install
+    buildCommand: ./render-build.sh
     startCommand: npm start
     envVars:
+      - key: PORT
+        value: 10000
       - key: NODE_ENV
         value: production
-      - key: RENDER
-        value: "true"
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: false
       - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/.cache/puppeteer
+        value: /opt/render/project/src/.cache/puppeteer
     scaling:
       minInstances: 1
       maxInstances: 1

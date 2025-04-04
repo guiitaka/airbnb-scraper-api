@@ -90,6 +90,23 @@ app.post('/scrape-airbnb', async (req, res) => {
             });
         }
 
+        // Erros específicos do Puppeteer
+        if (error.message?.includes('executablePath') || error.toString().includes('executablePath')) {
+            return res.status(500).json({
+                status: 'error',
+                message: 'Erro na configuração do Puppeteer. O caminho para o Chrome não foi encontrado.',
+                error: error.toString()
+            });
+        }
+
+        if (error.message?.includes('Protocol error') || error.toString().includes('Protocol error')) {
+            return res.status(500).json({
+                status: 'error',
+                message: 'Erro de protocolo do navegador durante o scraping.',
+                error: error.toString()
+            });
+        }
+
         return res.status(500).json({
             status: 'error',
             message: 'Erro interno no servidor',
