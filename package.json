@@ -6,8 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "nodemon src/index.js",
-    "preinstall": "node -e \"process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD='false'; console.log('Configurando ambiente para Puppeteer...');\"",
-    "build": "chmod +x render-build.sh && ./render-build.sh"
+    "build": "echo 'Simplified build process'"
   },
   "keywords": [],
   "author": "",
@@ -17,7 +16,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "puppeteer": "^21.5.0",
+    "puppeteer-core": "^19.7.0",
     "fs-extra": "^11.1.1",
     "path": "^0.12.7"
   },
