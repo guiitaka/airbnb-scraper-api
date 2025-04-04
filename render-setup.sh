@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Render setup script for Chrome
-echo "Iniciando configuração do Chrome no Render..."
+# Render setup script for Puppeteer
+echo "Iniciando configuração do ambiente para Puppeteer no Render..."
 
 # Verificar se está rodando no Render
 if [ -z "$RENDER" ]; then
@@ -9,29 +9,35 @@ if [ -z "$RENDER" ]; then
   exit 0
 fi
 
-# Instalar dependências do Chrome se necessário
-echo "Instalando dependências do Chrome..."
-apt-get update
-apt-get install -y wget gnupg ca-certificates procps libxss1 libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm-dev
+# Criar diretório de cache para Puppeteer
+CACHE_DIR="./.cache/puppeteer"
+echo "Criando diretório de cache: $CACHE_DIR"
+mkdir -p $CACHE_DIR
 
-# Verificar se o Chrome já está instalado
-if ! command -v google-chrome-stable &> /dev/null; then
-  echo "Instalando Google Chrome..."
-  wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-  echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
-  apt-get update
-  apt-get install -y google-chrome-stable
+# Verificar o ambiente
+echo "Informações do sistema:"
+echo "Node.js: $(node --version)"
+echo "NPM: $(npm --version)"
+echo "Diretório atual: $(pwd)"
+echo "Listagem de diretórios:"
+ls -la
+
+# Verificar se o Chrome está disponível no PATH
+if command -v google-chrome-stable &> /dev/null; then
+  echo "Google Chrome encontrado: $(which google-chrome-stable)"
+  google-chrome-stable --version
 else
-  echo "Google Chrome já está instalado."
+  echo "Google Chrome não encontrado no PATH. Puppeteer usará o Chromium interno."
 fi
 
-# Verificar a versão instalada
-CHROME_VERSION=$(google-chrome-stable --version)
-echo "Versão do Chrome instalada: $CHROME_VERSION"
+# Verificar espaço em disco disponível
+echo "Espaço em disco disponível:"
+df -h .
 
-# Informações de debug
-echo "Caminho do executável Chrome: $(which google-chrome-stable)"
-echo "Verificando permissões do Chrome..."
-ls -la $(which google-chrome-stable)
+# Verificar variáveis de ambiente relevantes
+echo "Variáveis de ambiente para Puppeteer:"
+echo "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: $PUPPETEER_SKIP_CHROMIUM_DOWNLOAD"
+echo "PUPPETEER_EXECUTABLE_PATH: $PUPPETEER_EXECUTABLE_PATH"
+echo "PUPPETEER_CACHE_DIR: $PUPPETEER_CACHE_DIR"
 
-echo "Configuração do Chrome concluída!" 
+echo "Configuração do ambiente concluída!" 
