@@ -7,7 +7,7 @@ const fs = require('fs');
 const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '..', '.cache', 'puppeteer');
 
 // Helper function para timeout
-const safeWaitForTimeout = async (page, timeout) => {
+const safeWaitForTimeout = async (timeout) => {
     await new Promise(resolve => setTimeout(resolve, timeout));
 };
 
@@ -42,15 +42,11 @@ async function scrapeAirbnb(url, step = 1) {
     let browser = null;
 
     try {
+        console.log(`Iniciando scraping, Etapa: ${step}`);
+
         // Limpar a URL para melhorar as chances de carregamento
         const cleanUrl = cleanAirbnbUrl(url);
-        console.log(`Iniciando scraping da URL: ${cleanUrl}, Etapa: ${step}`);
-
-        // Garantir que o diretório de cache existe
-        if (!fs.existsSync(PUPPETEER_CACHE_DIR)) {
-            console.log(`Criando diretório de cache: ${PUPPETEER_CACHE_DIR}`);
-            fs.mkdirSync(PUPPETEER_CACHE_DIR, { recursive: true });
-        }
+        console.log(`URL para scraping: ${cleanUrl}`);
 
         // Argumentos padrão para o browser
         const browserArgs = [
@@ -67,10 +63,10 @@ async function scrapeAirbnb(url, step = 1) {
         ];
 
         // Inicializar o navegador de forma simplificada
-        console.log('Inicializando navegador...');
+        console.log('Iniciando navegador com Puppeteer...');
         browser = await puppeteer.launch({
             args: browserArgs,
-            headless: 'new',
+            headless: true, // Usar true em vez de 'new' para maior compatibilidade
             ignoreHTTPSErrors: true
         });
 
@@ -86,22 +82,14 @@ async function scrapeAirbnb(url, step = 1) {
         // Adicionar extra headers para evitar detecção
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-User': '?1',
-            'Sec-Fetch-Dest': 'document',
-            'sec-ch-ua': '"Chromium";v="121", "Google Chrome";v="121", "Not=A?Brand";v="99"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"macOS"'
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
         });
 
-        // Interceptar requisições de imagem para melhorar performance
+        // Intercept requests to block images and other resources
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const resourceType = req.resourceType();
             if ((resourceType === 'image' || resourceType === 'font' || resourceType === 'media' || resourceType === 'stylesheet') && step !== 4) {
-                // Bloquear mais recursos para melhorar performance, exceto na etapa de fotos
                 req.abort();
             } else {
                 req.continue();
@@ -109,21 +97,29 @@ async function scrapeAirbnb(url, step = 1) {
         });
 
         console.log('Acessando a página...');
-        await page.goto(cleanUrl, {
-            waitUntil: 'networkidle2',
-            timeout: 120000
-        });
-
-        console.log('Aguardando carregamento da página...');
         try {
-            await page.waitForSelector('h1', { timeout: 20000 });
-            console.log('Título da página detectado');
-        } catch (err) {
-            console.warn('Timeout ao aguardar pelo título, continuando mesmo assim...');
-        }
+            await page.goto(cleanUrl, {
+                waitUntil: 'domcontentloaded', // Usar 'domcontentloaded' em vez de 'networkidle2' para carregamento mais rápido
+                timeout: 90000 // 90 segundos
+            });
 
-        await safeWaitForTimeout(page, 8000);
-        console.log('Página carregada, extraindo dados...');
+            console.log('Página carregada inicialmente');
+
+            // Tentar detectar o título da página para verificar se carregou
+            try {
+                await page.waitForSelector('h1', { timeout: 10000 });
+                console.log('Título da página detectado');
+            } catch (selectorError) {
+                console.warn('Não foi possível detectar o título, mas continuando...');
+            }
+
+            // Aguardar mais um pouco para garantir que JavaScript tenha sido executado
+            await safeWaitForTimeout(5000);
+            console.log('Página carregada, extraindo dados...');
+        } catch (navigationError) {
+            console.error('Erro ao navegar para a URL:', navigationError);
+            throw new Error(`Falha ao carregar a página: ${navigationError.message}`);
+        }
 
         let result = {
             status: 'partial',
@@ -432,7 +428,7 @@ async function scrapeAirbnb(url, step = 1) {
             console.log('Executando Etapa 3: Comodidades');
 
             // Aumentar o tempo de espera
-            await safeWaitForTimeout(page, 2000);
+            await safeWaitForTimeout(2000);
 
             const amenitiesData = await page.evaluate(() => {
                 const amenities = [];
@@ -582,7 +578,7 @@ async function scrapeAirbnb(url, step = 1) {
                 await page.goto(cleanUrl, { waitUntil: 'networkidle2' });
 
                 // Dar tempo para a página carregar
-                await safeWaitForTimeout(page, 8000);
+                await safeWaitForTimeout(8000);
 
                 // Extrair URLs de imagem diretamente do DOM
                 const pagePicturesData = await page.evaluate(() => {

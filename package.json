@@ -14,11 +14,10 @@
   "license": "ISC",
   "description": "API para scraping de anúncios do Airbnb",
   "dependencies": {
-    "@sparticuz/chromium": "^133.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "puppeteer": "^19.7.0",
+    "puppeteer": "^21.5.0",
     "fs-extra": "^11.1.1",
     "path": "^0.12.7"
   },
