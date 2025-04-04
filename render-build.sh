@@ -20,9 +20,13 @@ else
   echo "No existing Puppeteer cache found in build cache"
 fi
 
-# Install dependencies
+# Clean install dependencies
 echo "Installing dependencies..."
 npm ci
+
+# Force install puppeteer separately to ensure it's properly installed
+echo "Installing puppeteer specifically..."
+npm install puppeteer --save
 
 # Run Puppeteer check to verify installation and troubleshoot issues
 echo "Running Puppeteer checks..."

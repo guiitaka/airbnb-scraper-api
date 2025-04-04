@@ -6,7 +6,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "nodemon src/index.js",
-    "build": "echo 'Simplified build process'"
+    "build": "echo 'Simplified build process'",
+    "test-api": "node test-api.js"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +19,8 @@
     "express": "^4.21.2",
     "puppeteer": "^19.7.0",
     "fs-extra": "^11.1.1",
-    "path": "^0.12.7"
+    "path": "^0.12.7",
+    "node-fetch": "^2.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

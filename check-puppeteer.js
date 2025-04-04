@@ -4,23 +4,30 @@ const fs = require('fs');
 const path = require('path');
 
 async function checkPuppeteer() {
+    console.log('\n===== PUPPETEER DIAGNOSTIC CHECK =====');
     console.log('Checking Puppeteer installation...');
+    console.log('Node version:', process.version);
+    console.log('Puppeteer version:', require('puppeteer/package.json').version);
+    console.log('OS:', process.platform, process.arch);
+    console.log('Current working directory:', process.cwd());
+    console.log('Environment variables:');
+    console.log('- PUPPETEER_CACHE_DIR:', process.env.PUPPETEER_CACHE_DIR || '(not set)');
+    console.log('- PUPPETEER_SKIP_CHROMIUM_DOWNLOAD:', process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD || '(not set)');
 
     // Check if puppeteer is installed
     try {
-        const browserFetcher = puppeteer.createBrowserFetcher();
-        console.log('Browser fetcher created');
-
         // Try to get the browser executable path
+        let executablePath;
         try {
-            console.log('Checking puppeteer.executablePath()...');
-            const executablePath = puppeteer.executablePath();
+            console.log('\nChecking puppeteer.executablePath()...');
+            executablePath = puppeteer.executablePath();
             console.log('Executable path:', executablePath);
+            console.log('Executable path type:', typeof executablePath);
 
             if (fs.existsSync(executablePath)) {
                 console.log('✅ Browser executable exists at:', executablePath);
             } else {
-                console.log('❌ Browser executable does NOT exist at path:', executablePath);
+                console.error('❌ Browser executable does NOT exist at path:', executablePath);
             }
         } catch (execPathError) {
             console.error('Error getting executable path:', execPathError);
@@ -28,22 +35,32 @@ async function checkPuppeteer() {
 
         // Check the cache directory
         const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '.cache', 'puppeteer');
-        console.log('Cache directory:', cacheDir);
+        console.log('\nCache directory:', cacheDir);
 
         if (fs.existsSync(cacheDir)) {
             console.log('✅ Cache directory exists');
             try {
                 const files = fs.readdirSync(cacheDir);
                 console.log('Cache contents:', files);
+
+                // Check chrome directory
+                const chromeDir = path.join(cacheDir, 'chrome');
+                if (fs.existsSync(chromeDir)) {
+                    console.log('✅ Chrome directory exists');
+                    const chromeDirContents = fs.readdirSync(chromeDir);
+                    console.log('Chrome directory contents:', chromeDirContents);
+                } else {
+                    console.error('❌ Chrome directory does NOT exist in cache');
+                }
             } catch (readError) {
                 console.error('Error reading cache directory:', readError);
             }
         } else {
-            console.log('❌ Cache directory does NOT exist');
+            console.error('❌ Cache directory does NOT exist');
         }
 
         // Verify we can launch a browser
-        console.log('Trying to launch browser...');
+        console.log('\nTrying to launch browser...');
         try {
             const browser = await puppeteer.launch({
                 headless: true,
@@ -54,6 +71,11 @@ async function checkPuppeteer() {
             const version = await browser.version();
             console.log('Browser version:', version);
 
+            // Test a simple page navigation
+            const page = await browser.newPage();
+            await page.goto('about:blank');
+            console.log('✅ Successfully navigated to blank page');
+
             await browser.close();
             console.log('Browser closed successfully');
         } catch (launchError) {
@@ -63,6 +85,8 @@ async function checkPuppeteer() {
     } catch (error) {
         console.error('Error checking Puppeteer:', error);
     }
+
+    console.log('\n===== DIAGNOSTIC CHECK COMPLETE =====');
 }
 
 checkPuppeteer()

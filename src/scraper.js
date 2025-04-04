@@ -49,7 +49,7 @@ async function scrapeAirbnb(url, step = 1) {
         console.log(`Iniciando scraping da URL: ${cleanUrl}, Etapa: ${step}`);
 
         // Iniciar o browser com configurações para o Render.com
-        browser = await puppeteer.launch({
+        const launchOptions = {
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -69,7 +69,12 @@ async function scrapeAirbnb(url, step = 1) {
             ],
             headless: true,
             ignoreHTTPSErrors: true
-        });
+        };
+
+        // Log para debug
+        console.log('Opções de lançamento do browser:', JSON.stringify(launchOptions));
+
+        browser = await puppeteer.launch(launchOptions);
 
         console.log('Browser iniciado com sucesso');
 
