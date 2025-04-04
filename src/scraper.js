@@ -1,5 +1,5 @@
-// Usar puppeteer para web scraping
-const puppeteer = require('puppeteer');
+// Simplified scraper implementation 
+// const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 
