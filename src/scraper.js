@@ -236,7 +236,16 @@ async function scrapeAirbnb(url, step = 1) {
             const basicInfoData = await page.evaluate(() => {
                 // Título - tentar diferentes seletores
                 let title = '';
-                const titleSelectors = ['h1', '[data-section-id="TITLE_DEFAULT"] h1', '[data-plugin-in-point-id="TITLE_DEFAULT"] h1'];
+                const titleSelectors = [
+                    'h1',
+                    '[data-section-id="TITLE_DEFAULT"] h1',
+                    '[data-plugin-in-point-id="TITLE_DEFAULT"] h1',
+                    // Novos seletores para a estrutura atualizada do Airbnb
+                    'div._gfomxi > div > h1',
+                    'div[data-testid="pdp-title"] h1',
+                    'div.t1jojoys'
+                ];
+
                 for (const selector of titleSelectors) {
                     const element = document.querySelector(selector);
                     if (element) {
@@ -250,14 +259,73 @@ async function scrapeAirbnb(url, step = 1) {
                 const descSelectors = [
                     '[data-section-id="DESCRIPTION_DEFAULT"]',
                     '[data-plugin-in-point-id="DESCRIPTION_DEFAULT"]',
-                    '[aria-labelledby="listing-title-descriptor"]'
+                    '[aria-labelledby="listing-title-descriptor"]',
+                    // Novos seletores para a estrutura atualizada
+                    'div[data-testid="pdp-description"]',
+                    'div._1xib9j0i', // Novo seletor de descrição do Airbnb 2024
+                    'div.h1vnndll',  // Container de descrição alternativo
+                    'section[aria-label="Descrição"] span', // Descrição dentro de uma seção
+                    'div[data-section-id="DESCRIPTION_MODALLESS"] div' // Novo formato de container de descrição
                 ];
 
                 for (const selector of descSelectors) {
-                    const element = document.querySelector(selector);
-                    if (element) {
-                        description = element.textContent.trim();
-                        break;
+                    const elements = document.querySelectorAll(selector);
+                    if (elements.length > 0) {
+                        // Tentar extrair o texto de cada elemento encontrado
+                        for (const element of elements) {
+                            const text = element.textContent.trim();
+                            // Verificar se o texto parece uma descrição válida (mais de 20 caracteres)
+                            if (text && text.length > 20 && !text.includes('Mostrar mais') && !text.includes('Show more')) {
+                                description = text;
+                                break;
+                            }
+                        }
+                        if (description) break;
+                    }
+                }
+
+                // Método alternativo: capturar qualquer div grande com texto que pareça uma descrição
+                if (!description) {
+                    const allDivs = document.querySelectorAll('div');
+                    for (const div of allDivs) {
+                        const text = div.textContent.trim();
+                        // Verificar se o texto parece ser uma descrição válida (mais de 50 caracteres)
+                        // e não é um menu ou outro elemento não relevante
+                        if (text && text.length > 50 &&
+                            !text.includes('Mostrar mais') && !text.includes('Show more') &&
+                            !text.includes('Menu') && !text.includes('Log in') &&
+                            !div.querySelector('button')) {
+                            description = text;
+                            break;
+                        }
+                    }
+                }
+
+                // Capturar o endereço (novo)
+                let address = '';
+                const addressSelectors = [
+                    'div._ylefn59', // Seletor de endereço no Airbnb 2024
+                    'div.t17lg2d1', // Container de localização alternativo
+                    'a[href*="maps"]', // Links para mapas costumam ter o endereço ou parte dele
+                    'div[data-section-id="LOCATION_DEFAULT"]', // Container de localização padrão
+                    'div[data-testid="pdp-location"]' // Novo teste ID para localização
+                ];
+
+                for (const selector of addressSelectors) {
+                    const elements = document.querySelectorAll(selector);
+                    if (elements.length > 0) {
+                        for (const element of elements) {
+                            const text = element.textContent.trim();
+                            // Verificar se o texto parece um endereço (tem palavras como "rua", "avenida", "bairro", etc)
+                            const addressKeywords = ["rua", "avenida", "av.", "r.", "bairro", "cidade", "estado", "apartamento", "localizado"];
+                            const hasAddressKeyword = addressKeywords.some(keyword => text.toLowerCase().includes(keyword));
+
+                            if (text && (hasAddressKeyword || text.includes(","))) {
+                                address = text;
+                                break;
+                            }
+                        }
+                        if (address) break;
                     }
                 }
 
@@ -289,7 +357,7 @@ async function scrapeAirbnb(url, step = 1) {
                     type = 'outro';
                 }
 
-                return { title, description, type };
+                return { title, description, type, address };
             });
 
             result.data = basicInfoData;
@@ -464,10 +532,12 @@ async function scrapeAirbnb(url, step = 1) {
 
             const amenitiesData = await page.evaluate(() => {
                 const amenities = [];
+                let amenitiesWithIcons = [];
 
                 // Método 1: Procurar na seção de comodidades padrão
                 const amenitySection = document.querySelector('[data-section-id="AMENITIES_DEFAULT"]');
                 if (amenitySection) {
+                    console.log("Encontrada seção de comodidades padrão");
                     // Obter todos os items de comodidades
                     const amenityItems = amenitySection.querySelectorAll('div._19xnuo97');
                     amenityItems.forEach(item => {
@@ -478,31 +548,117 @@ async function scrapeAirbnb(url, step = 1) {
                     });
                 }
 
-                // Método 2: Tentar com outros seletores se o primeiro falhar
+                // Método 2: Novos seletores para 2024
+                if (amenities.length === 0) {
+                    // Novos seletores para listas de comodidades
+                    const newAmenitySelectors = [
+                        'div[data-testid="amenities-section"] div',
+                        'div[data-section-id="AMENITIES_MODALLESS"] div',
+                        'div._8xfrhj',
+                        'div.t1e04h6m',
+                        'div._1byskwn'
+                    ];
+
+                    for (const selector of newAmenitySelectors) {
+                        const items = document.querySelectorAll(selector);
+                        if (items.length > 0) {
+                            console.log(`Encontrados ${items.length} itens com seletor ${selector}`);
+
+                            items.forEach(item => {
+                                const text = item.textContent.trim();
+                                // Filtrar textos relevantes
+                                if (text && text.length > 3 &&
+                                    !text.includes('Mostrar todas') &&
+                                    !text.includes('O que este lugar oferece') &&
+                                    !text.includes('mostrar todos') &&
+                                    !text.includes('amenities') &&
+                                    !text.includes('available')) {
+
+                                    // Verificar se tem ícone (pode indicar que é uma comodidade)
+                                    const hasIcon = item.querySelector('svg') !== null;
+
+                                    if (hasIcon) {
+                                        amenitiesWithIcons.push(text);
+                                    }
+
+                                    amenities.push({ text });
+                                }
+                            });
+
+                            if (amenities.length > 0) break;
+                        }
+                    }
+                }
+
+                // Método 3: Tentar com outros seletores se os anteriores falharem
                 if (amenities.length === 0) {
                     // Tentar encontrar a seção por texto
                     const allDivs = document.querySelectorAll('div');
                     for (const div of allDivs) {
                         if (div.textContent.includes('O que este lugar oferece') ||
-                            div.textContent.includes('What this place offers')) {
+                            div.textContent.includes('What this place offers') ||
+                            div.textContent.includes('Comodidades') ||
+                            div.textContent.includes('Amenities')) {
+                            console.log("Encontrada seção de comodidades pelo texto");
+
                             // Encontramos a seção, procurar elementos filhos
-                            const amenityContainers = div.querySelectorAll('div > div');
+                            const parent = div.parentElement;
+                            const amenityContainers = parent.querySelectorAll('div');
+
                             for (const container of amenityContainers) {
                                 const text = container.textContent.trim();
                                 // Filtrar textos relevantes (remover botões e títulos)
                                 if (text &&
+                                    text.length > 3 &&
                                     !text.includes('Mostrar todas') &&
+                                    !text.includes('Show all') &&
                                     !text.includes('O que este lugar oferece') &&
-                                    !text.includes('What this place offers')) {
+                                    !text.includes('What this place offers') &&
+                                    !text.includes('Comodidades') &&
+                                    !text.includes('Amenities')) {
+
+                                    // Verificar se tem ícone
+                                    const hasIcon = container.querySelector('svg') !== null;
+
+                                    if (hasIcon) {
+                                        amenitiesWithIcons.push(text);
+                                    }
+
                                     amenities.push({ text });
                                 }
                             }
-                            break; // Encontrou a seção, parar de procurar
+
+                            if (amenities.length > 0) break;
                         }
                     }
                 }
 
-                return { amenities };
+                // Nova abordagem: pegar qualquer div que tenha um ícone SVG como filho
+                if (amenities.length === 0) {
+                    const svgContainers = document.querySelectorAll('div:has(svg)');
+                    svgContainers.forEach(container => {
+                        const text = container.textContent.trim();
+                        if (text &&
+                            text.length > 3 &&
+                            text.length < 50 &&
+                            !text.includes('Mostrar') &&
+                            !text.includes('Show') &&
+                            !text.includes('Menu')) {
+
+                            amenitiesWithIcons.push(text);
+                            amenities.push({ text });
+                        }
+                    });
+                }
+
+                // Remover possíveis duplicatas
+                const uniqueAmenities = [...new Set(amenities.map(item => item.text))].map(text => ({ text }));
+                const uniqueAmenitiesWithIcons = [...new Set(amenitiesWithIcons)];
+
+                return {
+                    amenities: uniqueAmenities,
+                    amenitiesWithIcons: uniqueAmenitiesWithIcons
+                };
             });
 
             result.data = amenitiesData;
@@ -519,42 +675,104 @@ async function scrapeAirbnb(url, step = 1) {
                 await page.setRequestInterception(false);
 
                 // Recarregar a página para obter as imagens
-                await page.goto(cleanUrl, { waitUntil: 'domcontentloaded' });
+                await page.goto(cleanUrl, { waitUntil: 'networkidle2' });
 
                 // Dar tempo para a página carregar
-                await safeWaitForTimeout(page, 5000);
+                await safeWaitForTimeout(page, 8000);
 
                 // Extrair URLs de imagem diretamente do DOM
                 const pagePicturesData = await page.evaluate(() => {
                     const pictures = [];
 
-                    // Procurar tags de imagem com atributos relevantes
-                    const imgElements = document.querySelectorAll('img');
-                    imgElements.forEach(img => {
-                        const src = img.src || '';
-                        if (src &&
-                            (src.includes('picture') || src.includes('photo') || src.includes('image')) &&
-                            !src.includes('icon') &&
-                            !src.includes('small') &&
-                            !src.includes('profile') &&
-                            img.width > 200) { // Filtrar imagens pequenas
-                            pictures.push(src);
+                    // Novos seletores para imagens no Airbnb 2024
+                    const imageContainerSelectors = [
+                        'div[data-testid="pdp-images"]',
+                        'div[data-section-id="PHOTOS_DEFAULT"]',
+                        'div._bb78gu4', // Nova classe de container de imagens
+                        'div._vd6w38n', // Outra classe de imagem
+                        'div._skzmth'   // Container de fotos alternativo
+                    ];
+
+                    // Tentar encontrar containers de imagens específicos primeiro
+                    for (const selector of imageContainerSelectors) {
+                        const container = document.querySelector(selector);
+                        if (container) {
+                            console.log(`Encontrado container de imagens com seletor ${selector}`);
+                            // Procurar tags de imagem dentro deste container
+                            const imgElements = container.querySelectorAll('img');
+                            imgElements.forEach(img => {
+                                const src = img.src || '';
+                                // Verificar se é uma URL válida e não é um ícone
+                                if (src && src.includes('http') && !src.includes('icon') && img.width > 200) {
+                                    pictures.push(src);
+                                }
+                                // Verificar também o atributo data-original-uri que o Airbnb às vezes usa
+                                const originalSrc = img.getAttribute('data-original-uri');
+                                if (originalSrc && originalSrc.includes('http')) {
+                                    pictures.push(originalSrc);
+                                }
+                            });
+
+                            if (pictures.length > 0) break;
                         }
-                    });
+                    }
+
+                    // Se não encontrou imagens nos containers específicos, procurar todas as imagens
+                    if (pictures.length === 0) {
+                        // Procurar tags de imagem com atributos relevantes
+                        const imgElements = document.querySelectorAll('img');
+                        imgElements.forEach(img => {
+                            // Procurar atributos que podem conter a URL da imagem
+                            const possibleSrcs = [
+                                img.src,
+                                img.getAttribute('data-original-uri'),
+                                img.getAttribute('data-src'),
+                                img.getAttribute('srcset')?.split(' ')[0]
+                            ].filter(Boolean);
+
+                            for (const src of possibleSrcs) {
+                                if (src &&
+                                    src.includes('http') &&
+                                    (src.includes('picture') || src.includes('photo') || src.includes('image') || src.includes('airbnb')) &&
+                                    !src.includes('icon') &&
+                                    !src.includes('small') &&
+                                    !src.includes('thumb') &&
+                                    !src.includes('profile') &&
+                                    img.width > 200) {
+                                    pictures.push(src);
+                                }
+                            }
+                        });
+                    }
 
                     // Procurar divs de background com estilos inline contendo url()
                     const allElements = document.querySelectorAll('div[style*="background"]');
                     allElements.forEach(div => {
                         const style = div.getAttribute('style') || '';
-                        const match = style.match(/url\(['"]?(.*?)['"]?\)/);
-                        if (match && match[1]) {
-                            const url = match[1];
-                            if (url &&
-                                (url.includes('picture') || url.includes('photo') || url.includes('image')) &&
-                                !url.includes('icon') &&
-                                !url.includes('small')) {
-                                pictures.push(url);
+                        const matches = style.match(/url\(['"]?(.*?)['"]?\)/g);
+                        if (matches) {
+                            for (const match of matches) {
+                                const url = match.replace(/url\(['"]?(.*?)['"]?\)/, '$1');
+                                if (url &&
+                                    url.includes('http') &&
+                                    (url.includes('picture') || url.includes('photo') || url.includes('image') || url.includes('airbnb')) &&
+                                    !url.includes('icon') &&
+                                    !url.includes('small') &&
+                                    !url.includes('thumb')) {
+                                    pictures.push(url);
+                                }
                             }
+                        }
+                    });
+
+                    // Buscar também em atributos 'srcset', que o Airbnb usa para imagens responsivas
+                    const elementsWithSrcset = document.querySelectorAll('[srcset]');
+                    elementsWithSrcset.forEach(element => {
+                        const srcset = element.getAttribute('srcset') || '';
+                        // Pegar a primeira URL do srcset (geralmente a maior resolução)
+                        const firstUrl = srcset.split(',')[0]?.split(' ')[0];
+                        if (firstUrl && firstUrl.includes('http') && !firstUrl.includes('icon')) {
+                            pictures.push(firstUrl);
                         }
                     });
 
@@ -567,6 +785,8 @@ async function scrapeAirbnb(url, step = 1) {
                     return !url.includes('profile') &&
                         !url.includes('user') &&
                         !url.includes('icon') &&
+                        !url.includes('avatar') &&
+                        !url.includes('logo') &&
                         url.length > 20;
                 });
 
