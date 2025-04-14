@@ -13,6 +13,22 @@ async function checkPuppeteer() {
     console.log('Checking Puppeteer and plugins installation...');
     console.log('Node version:', process.version);
 
+    // Verificar caminho do Chrome
+    console.log('Chrome path (env):', process.env.CHROME_BIN || '(not set)');
+    console.log('Puppeteer executable path (env):', process.env.PUPPETEER_EXECUTABLE_PATH || '(not set)');
+
+    // Verificar se o binário existe
+    const chromePath = process.env.CHROME_BIN || '/opt/render/project/.render/chrome/opt/google/chrome/chrome';
+    try {
+        if (fs.existsSync(chromePath)) {
+            console.log('✅ Chrome binary exists at:', chromePath);
+        } else {
+            console.error('❌ Chrome binary does NOT exist at path:', chromePath);
+        }
+    } catch (err) {
+        console.error('Error checking Chrome binary:', err);
+    }
+
     // Verificar versões das dependências
     try {
         console.log('Puppeteer version:', require('puppeteer/package.json').version);
@@ -93,6 +109,7 @@ async function checkPuppeteer() {
         try {
             const browser = await puppeteerExtra.launch({
                 headless: true,
+                executablePath: process.env.CHROME_BIN || '/opt/render/project/.render/chrome/opt/google/chrome/chrome',
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
             console.log('✅ Browser launched successfully with puppeteer-extra!');

@@ -4,16 +4,18 @@ services:
     env: node
     plan: free
     buildCommand: ./render-build.sh
-    startCommand: npm start
+    startCommand: export PATH="${PATH}:/opt/render/project/.render/chrome/opt/google/chrome"; npm start
     envVars:
       - key: PORT
         value: 10000
       - key: NODE_ENV
         value: production
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: false
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/src/.cache/puppeteer
+        value: true
+      - key: CHROME_BIN
+        value: /opt/render/project/.render/chrome/opt/google/chrome/chrome
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /opt/render/project/.render/chrome/opt/google/chrome/chrome
     scaling:
       minInstances: 1
       maxInstances: 1

@@ -98,6 +98,7 @@ async function scrapeAirbnb(url, step = 1) {
                     '--lang=pt-BR,pt',
                 ],
                 headless: 'new', // Usar headless: 'new' para ambiente Render
+                executablePath: process.env.CHROME_BIN || '/opt/render/project/.render/chrome/opt/google/chrome/chrome',
                 ignoreHTTPSErrors: true,
                 defaultViewport: {
                     width: 1920,
