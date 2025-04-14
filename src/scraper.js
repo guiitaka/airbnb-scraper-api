@@ -65,9 +65,12 @@ async function scrapeAirbnb(url, step = 1) {
                 '--disable-backgrounding-occluded-windows',
                 '--disable-renderer-backgrounding',
                 '--disable-background-timer-throttling',
-                '--disable-ipc-flooding-protection'
+                '--disable-ipc-flooding-protection',
+                '--window-size=1920,1080',
+                '--enable-features=NetworkService',
+                '--allow-running-insecure-content'
             ],
-            headless: true,
+            headless: 'new',
             ignoreHTTPSErrors: true
         };
 
@@ -80,21 +83,80 @@ async function scrapeAirbnb(url, step = 1) {
 
         const page = await browser.newPage();
 
+        // Adicionar fingerprint e características de navegador real
+        await page.evaluateOnNewDocument(() => {
+            // Sobrescrever propriedades que os sites usam para detectar headless browsers
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => false
+            });
+
+            // Adicionar plugins do Chrome para parecer mais real
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [
+                    {
+                        0: { type: 'application/pdf' },
+                        description: 'Portable Document Format',
+                        filename: 'internal-pdf-viewer',
+                        length: 1,
+                        name: 'Chrome PDF Plugin'
+                    },
+                    {
+                        0: { type: 'application/pdf' },
+                        description: 'Portable Document Format',
+                        filename: 'internal-pdf-viewer',
+                        length: 1,
+                        name: 'Chrome PDF Viewer'
+                    },
+                    {
+                        0: { type: 'application/x-google-chrome-pdf' },
+                        description: '',
+                        filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
+                        length: 1,
+                        name: 'Chrome PDF Viewer'
+                    }
+                ]
+            });
+
+            // Adicionar línguas como um navegador real
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['pt-BR', 'pt', 'en-US', 'en']
+            });
+
+            // Esconder o fato de que estamos usando o Puppeteer
+            const getParameter = WebGLRenderingContext.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function (parameter) {
+                if (parameter === 37445) {
+                    return 'Intel Inc.';
+                }
+                if (parameter === 37446) {
+                    return 'Intel Iris Graphics 6100';
+                }
+                return getParameter(parameter);
+            };
+        });
+
         // Adicionar headers mais realistas para evitar detecção de bot
         await page.setExtraHTTPHeaders({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+            'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not=A?Brand";v="99"',
             'Sec-Ch-Ua-Mobile': '?0',
             'Sec-Ch-Ua-Platform': '"macOS"',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Cache-Control': 'max-age=0',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-User': '?1',
+            'Sec-Fetch-Dest': 'document',
+            'Accept-Encoding': 'gzip, deflate, br'
         });
 
         // Configurar timeout e viewport
         await page.setDefaultNavigationTimeout(120000); // 2 minutos
-        await page.setViewport({ width: 1920, height: 1080 });
+        await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
 
         // User agent moderno para evitar detecção
-        await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
 
         // Interceptar e bloquear recursos desnecessários
         await page.setRequestInterception(true);
@@ -104,21 +166,77 @@ async function scrapeAirbnb(url, step = 1) {
             if ((resourceType === 'image' || resourceType === 'font' || resourceType === 'media' || resourceType === 'stylesheet') && step !== 4) {
                 req.abort();
             } else {
-                req.continue();
+                const headers = req.headers();
+                headers['sec-ch-ua'] = '"Google Chrome";v="124", "Chromium";v="124", "Not=A?Brand";v="99"';
+                req.continue({ headers });
             }
         });
+
+        // Função helper para delays aleatórios
+        const randomDelay = (min, max) => Math.floor(Math.random() * (max - min) + min);
 
         // Definir um timeout para a navegação com promise racing
         const navigationPromise = new Promise(async (resolve, reject) => {
             try {
                 console.log('Acessando a página...');
+
+                // Navegação com configurações completas
                 await page.goto(cleanUrl, {
-                    waitUntil: 'domcontentloaded', // Mais rápido que networkidle2
+                    waitUntil: ['domcontentloaded', 'networkidle2'], // Garante carregamento mais completo
                     timeout: 100000 // 100 segundos específicos para navegação
                 });
 
                 console.log('Conteúdo DOM carregado, aguardando scripts...');
-                await safeWaitForTimeout(3000);
+
+                // Aguardar elementos vitais que indicam carregamento da página
+                try {
+                    // Esperar que elementos críticos da página apareçam (ex: título, cabeçalho, etc)
+                    await Promise.race([
+                        page.waitForSelector('h1', { timeout: 10000 }),
+                        page.waitForSelector('[data-section-id="TITLE_DEFAULT"]', { timeout: 10000 }),
+                        page.waitForSelector('[data-testid="pdp-title"]', { timeout: 10000 }),
+                        page.waitForSelector('main header', { timeout: 10000 })
+                    ]).catch(() => console.log('Elementos de título não encontrados, continuando...'));
+                } catch (err) {
+                    console.log('Timeout ao esperar elementos específicos, mas continuando...');
+                }
+
+                // Simular comportamento humano com mouse e scrolling
+                await page.mouse.move(randomDelay(300, 700), randomDelay(100, 400));
+                await safeWaitForTimeout(randomDelay(500, 1000));
+
+                // Movimento de mouse aleatório
+                for (let i = 0; i < 3; i++) {
+                    await page.mouse.move(
+                        randomDelay(100, 900),
+                        randomDelay(100, 600)
+                    );
+                    await safeWaitForTimeout(randomDelay(200, 500));
+                }
+
+                // Scroll gradual para simular comportamento humano
+                await page.evaluate(() => {
+                    const totalScrolls = Math.floor(Math.random() * 5) + 3;
+                    const scrollStep = () => {
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                window.scrollBy(0, Math.floor(Math.random() * 200) + 100);
+                                resolve();
+                            }, Math.floor(Math.random() * 300) + 100);
+                        });
+                    };
+
+                    const performScrolls = async () => {
+                        for (let i = 0; i < totalScrolls; i++) {
+                            await scrollStep();
+                        }
+                    };
+
+                    return performScrolls();
+                });
+
+                // Aguardar um pouco antes de continuar
+                await safeWaitForTimeout(randomDelay(2000, 4000));
 
                 // Log do título da página para debug
                 console.log('Página título:', await page.title());
@@ -142,12 +260,40 @@ async function scrapeAirbnb(url, step = 1) {
                     throw new Error('Airbnb está bloqueando o acesso automatizado. Tente novamente mais tarde.');
                 }
 
-                // Adicionar comportamento de rolagem para parecer mais humano
-                await page.evaluate(() => {
-                    window.scrollTo(0, Math.floor(Math.random() * 100));
-                    window.scrollTo(0, Math.floor(Math.random() * 700));
+                // Verificar se a página contém o conteúdo esperado do Airbnb
+                const hasContent = await page.evaluate(() => {
+                    // Verificar se temos elementos importantes da página de anúncio
+                    const hasTitle = !!document.querySelector('h1') ||
+                        !!document.querySelector('[data-section-id="TITLE_DEFAULT"]') ||
+                        !!document.querySelector('[data-testid="pdp-title"]');
+
+                    const hasNoScript = !!document.querySelector('noscript');
+                    const hasJsDisabledMessage = document.body.innerHTML.includes('não funcionam corretamente sem a habilitação do');
+
+                    // Se tem título e NÃO tem mensagens de erro JS, consideramos que a página carregou
+                    return hasTitle && (!hasNoScript || !hasJsDisabledMessage);
                 });
-                await safeWaitForTimeout(1000 + Math.random() * 1000);
+
+                if (!hasContent) {
+                    console.log('⚠️ Conteúdo não foi carregado corretamente. Tentando carregamento adicional...');
+
+                    // Tentar forçar recarregamento da página com mais espera
+                    await page.reload({ waitUntil: ['load', 'networkidle2'], timeout: 60000 });
+                    await safeWaitForTimeout(5000);
+
+                    // Verificar se o conteúdo carregou após reload
+                    const hasContentAfterReload = await page.evaluate(() => {
+                        return !!document.querySelector('h1') ||
+                            !!document.querySelector('[data-section-id="TITLE_DEFAULT"]') ||
+                            !!document.querySelector('[data-testid="pdp-title"]');
+                    });
+
+                    if (!hasContentAfterReload) {
+                        console.log('⚠️ Conteúdo ainda não carregou após reload. Continuando mesmo assim...');
+                    } else {
+                        console.log('✅ Conteúdo carregado após reload!');
+                    }
+                }
 
                 console.log('Página carregada, extraindo dados...');
                 resolve();
