@@ -14,31 +14,31 @@ let scrapeHelpers = {};
 
 // Carregar utilitários com tratamento de erro para maior resiliência
 try {
-    browserFingerprint = require('./utils/browser-fingerprint');
+    browserFingerprint = require('../utils/browser-fingerprint');
 } catch (error) {
     console.warn(`Aviso: Não foi possível carregar o módulo browser-fingerprint: ${error.message}`);
 }
 
 try {
-    proxyRotator = require('./utils/proxy-rotator');
+    proxyRotator = require('../utils/proxy-rotator');
 } catch (error) {
     console.warn(`Aviso: Não foi possível carregar o módulo proxy-rotator: ${error.message}`);
 }
 
 try {
-    cookiesManager = require('./utils/cookies-manager');
+    cookiesManager = require('../utils/cookies-manager');
 } catch (error) {
     console.warn(`Aviso: Não foi possível carregar o módulo cookies-manager: ${error.message}`);
 }
 
 try {
-    browserConfig = require('./utils/browser-config');
+    browserConfig = require('../utils/browser-config');
 } catch (error) {
     console.warn(`Aviso: Não foi possível carregar o módulo browser-config: ${error.message}`);
 }
 
 try {
-    scrapeHelpers = require('./utils/scrape-helpers');
+    scrapeHelpers = require('../utils/scrape-helpers');
 } catch (error) {
     console.warn(`Aviso: Não foi possível carregar o módulo scrape-helpers: ${error.message}`);
 }
