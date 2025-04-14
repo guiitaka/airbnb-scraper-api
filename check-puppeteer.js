@@ -1,13 +1,30 @@
 // Script to verify Puppeteer installation
 const puppeteer = require('puppeteer');
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker');
+const AnonymizeUAPlugin = require('puppeteer-extra-plugin-anonymize-ua');
+const randomUseragent = require('random-useragent');
 const fs = require('fs');
 const path = require('path');
 
 async function checkPuppeteer() {
     console.log('\n===== PUPPETEER DIAGNOSTIC CHECK =====');
-    console.log('Checking Puppeteer installation...');
+    console.log('Checking Puppeteer and plugins installation...');
     console.log('Node version:', process.version);
-    console.log('Puppeteer version:', require('puppeteer/package.json').version);
+
+    // Verificar versões das dependências
+    try {
+        console.log('Puppeteer version:', require('puppeteer/package.json').version);
+        console.log('Puppeteer-extra version:', require('puppeteer-extra/package.json').version);
+        console.log('Stealth plugin version:', require('puppeteer-extra-plugin-stealth/package.json').version);
+        console.log('Adblocker plugin version:', require('puppeteer-extra-plugin-adblocker/package.json').version);
+        console.log('Anonymize-UA plugin version:', require('puppeteer-extra-plugin-anonymize-ua/package.json').version);
+        console.log('Random-useragent version:', require('random-useragent/package.json').version);
+    } catch (err) {
+        console.error('Error checking plugin versions:', err.message);
+    }
+
     console.log('OS:', process.platform, process.arch);
     console.log('Current working directory:', process.cwd());
     console.log('Environment variables:');
@@ -17,10 +34,9 @@ async function checkPuppeteer() {
     // Check if puppeteer is installed
     try {
         // Try to get the browser executable path
-        let executablePath;
         try {
             console.log('\nChecking puppeteer.executablePath()...');
-            executablePath = puppeteer.executablePath();
+            const executablePath = puppeteer.executablePath();
             console.log('Executable path:', executablePath);
             console.log('Executable path type:', typeof executablePath);
 
@@ -59,14 +75,27 @@ async function checkPuppeteer() {
             console.error('❌ Cache directory does NOT exist');
         }
 
-        // Verify we can launch a browser
-        console.log('\nTrying to launch browser...');
+        // Verify we can launch a browser with puppeteer-extra
+        console.log('\nTesting puppeteer-extra with plugins...');
         try {
-            const browser = await puppeteer.launch({
+            // Registrar plugins
+            puppeteerExtra.use(StealthPlugin());
+            puppeteerExtra.use(AdblockerPlugin({ blockTrackers: true }));
+            puppeteerExtra.use(AnonymizeUAPlugin());
+
+            console.log('✅ Plugins registered successfully');
+        } catch (pluginError) {
+            console.error('❌ Error registering plugins:', pluginError);
+        }
+
+        // Verificar que conseguimos lançar um browser com puppeteer-extra
+        console.log('\nTrying to launch browser with puppeteer-extra...');
+        try {
+            const browser = await puppeteerExtra.launch({
                 headless: true,
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
-            console.log('✅ Browser launched successfully!');
+            console.log('✅ Browser launched successfully with puppeteer-extra!');
 
             const version = await browser.version();
             console.log('Browser version:', version);
@@ -79,7 +108,20 @@ async function checkPuppeteer() {
             await browser.close();
             console.log('Browser closed successfully');
         } catch (launchError) {
-            console.error('❌ Failed to launch browser:', launchError);
+            console.error('❌ Failed to launch browser with puppeteer-extra:', launchError);
+
+            // Fallback para puppeteer regular
+            console.log('\nTrying fallback to regular puppeteer...');
+            try {
+                const browser = await puppeteer.launch({
+                    headless: true,
+                    args: ['--no-sandbox', '--disable-setuid-sandbox']
+                });
+                console.log('✅ Regular puppeteer browser launched successfully');
+                await browser.close();
+            } catch (fallbackError) {
+                console.error('❌ Failed even with regular puppeteer:', fallbackError);
+            }
         }
 
     } catch (error) {
