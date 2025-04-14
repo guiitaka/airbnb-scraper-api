@@ -7,7 +7,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "node test-api.js",
-    "check": "node check-puppeteer.js"
+    "check": "node check-puppeteer.js",
+    "build": "echo 'Build completed successfully'"
   },
   "keywords": [
     "scraper",
@@ -32,6 +33,6 @@
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   }
 }
