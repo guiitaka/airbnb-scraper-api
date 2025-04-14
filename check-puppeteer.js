@@ -8,25 +8,77 @@ const randomUseragent = require('random-useragent');
 const fs = require('fs');
 const path = require('path');
 
+// Função para obter o caminho do Chrome
+function getChromePath() {
+    try {
+        // Tentar ler do arquivo .chrome-path
+        if (fs.existsSync('.chrome-path')) {
+            const chromePath = fs.readFileSync('.chrome-path', 'utf-8').trim();
+            console.log(`Using Chrome from .chrome-path: ${chromePath}`);
+            return chromePath;
+        }
+    } catch (error) {
+        console.error('Error reading .chrome-path:', error.message);
+    }
+
+    // Fallbacks
+    const envPath = process.env.CHROME_BIN || process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (envPath) {
+        console.log(`Using Chrome from environment: ${envPath}`);
+        return envPath;
+    }
+
+    // Path padrão para o Chrome for Testing
+    const defaultPath = path.join(process.cwd(), '.chrome', 'chrome-linux64', 'chrome');
+    if (fs.existsSync(defaultPath)) {
+        console.log(`Using Chrome from default path: ${defaultPath}`);
+        return defaultPath;
+    }
+
+    // Último recurso - deixar o Puppeteer tentar encontrar o Chrome
+    console.log('No Chrome path found, letting Puppeteer decide');
+    return undefined;
+}
+
 async function checkPuppeteer() {
     console.log('\n===== PUPPETEER DIAGNOSTIC CHECK =====');
     console.log('Checking Puppeteer and plugins installation...');
     console.log('Node version:', process.version);
 
     // Verificar caminho do Chrome
+    const chromePath = getChromePath();
+    console.log('Chrome path:', chromePath || '(not set)');
     console.log('Chrome path (env):', process.env.CHROME_BIN || '(not set)');
     console.log('Puppeteer executable path (env):', process.env.PUPPETEER_EXECUTABLE_PATH || '(not set)');
 
     // Verificar se o binário existe
-    const chromePath = process.env.CHROME_BIN || '/opt/render/project/.render/chrome/opt/google/chrome/chrome';
-    try {
-        if (fs.existsSync(chromePath)) {
-            console.log('✅ Chrome binary exists at:', chromePath);
-        } else {
-            console.error('❌ Chrome binary does NOT exist at path:', chromePath);
+    if (chromePath) {
+        try {
+            if (fs.existsSync(chromePath)) {
+                console.log('✅ Chrome binary exists at:', chromePath);
+
+                // Verificar permissões
+                try {
+                    fs.accessSync(chromePath, fs.constants.X_OK);
+                    console.log('✅ Chrome binary is executable');
+                } catch (err) {
+                    console.error('❌ Chrome binary is not executable');
+                    // Tentar corrigir permissões
+                    try {
+                        require('child_process').execSync(`chmod +x "${chromePath}"`);
+                        console.log('Fixed Chrome binary permissions');
+                    } catch (chmodErr) {
+                        console.error('Failed to fix permissions:', chmodErr.message);
+                    }
+                }
+            } else {
+                console.error('❌ Chrome binary does NOT exist at path:', chromePath);
+            }
+        } catch (err) {
+            console.error('Error checking Chrome binary:', err);
         }
-    } catch (err) {
-        console.error('Error checking Chrome binary:', err);
+    } else {
+        console.log('⚠️ No specific Chrome path provided');
     }
 
     // Verificar versões das dependências
@@ -49,22 +101,6 @@ async function checkPuppeteer() {
 
     // Check if puppeteer is installed
     try {
-        // Try to get the browser executable path
-        try {
-            console.log('\nChecking puppeteer.executablePath()...');
-            const executablePath = puppeteer.executablePath();
-            console.log('Executable path:', executablePath);
-            console.log('Executable path type:', typeof executablePath);
-
-            if (fs.existsSync(executablePath)) {
-                console.log('✅ Browser executable exists at:', executablePath);
-            } else {
-                console.error('❌ Browser executable does NOT exist at path:', executablePath);
-            }
-        } catch (execPathError) {
-            console.error('Error getting executable path:', execPathError);
-        }
-
         // Check the cache directory
         const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '.cache', 'puppeteer');
         console.log('\nCache directory:', cacheDir);
@@ -74,21 +110,23 @@ async function checkPuppeteer() {
             try {
                 const files = fs.readdirSync(cacheDir);
                 console.log('Cache contents:', files);
-
-                // Check chrome directory
-                const chromeDir = path.join(cacheDir, 'chrome');
-                if (fs.existsSync(chromeDir)) {
-                    console.log('✅ Chrome directory exists');
-                    const chromeDirContents = fs.readdirSync(chromeDir);
-                    console.log('Chrome directory contents:', chromeDirContents);
-                } else {
-                    console.error('❌ Chrome directory does NOT exist in cache');
-                }
             } catch (readError) {
                 console.error('Error reading cache directory:', readError);
             }
         } else {
-            console.error('❌ Cache directory does NOT exist');
+            console.log('⚠️ Cache directory does NOT exist (might be ok with custom Chrome)');
+        }
+
+        // Verificar se o Chrome ZIP ainda existe na pasta .chrome
+        const chromeDir = path.join(process.cwd(), '.chrome');
+        if (fs.existsSync(chromeDir)) {
+            console.log('✅ Chrome directory exists');
+            try {
+                const files = fs.readdirSync(chromeDir);
+                console.log('Chrome directory contents:', files);
+            } catch (readError) {
+                console.error('Error reading Chrome directory:', readError);
+            }
         }
 
         // Verify we can launch a browser with puppeteer-extra
@@ -109,7 +147,7 @@ async function checkPuppeteer() {
         try {
             const browser = await puppeteerExtra.launch({
                 headless: true,
-                executablePath: process.env.CHROME_BIN || '/opt/render/project/.render/chrome/opt/google/chrome/chrome',
+                executablePath: chromePath,
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
             console.log('✅ Browser launched successfully with puppeteer-extra!');
@@ -132,6 +170,7 @@ async function checkPuppeteer() {
             try {
                 const browser = await puppeteer.launch({
                     headless: true,
+                    executablePath: chromePath,
                     args: ['--no-sandbox', '--disable-setuid-sandbox']
                 });
                 console.log('✅ Regular puppeteer browser launched successfully');

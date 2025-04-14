@@ -8,7 +8,7 @@
     "dev": "nodemon src/index.js",
     "test": "node test-api.js",
     "check": "node check-puppeteer.js",
-    "build": "echo 'Build step completed. No actual build needed for Node.js project.'"
+    "build": "node build-chrome.js"
   },
   "keywords": [
     "scraper",

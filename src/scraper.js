@@ -60,6 +60,38 @@ function getModernUserAgent() {
     return macOSUserAgents[Math.floor(Math.random() * macOSUserAgents.length)];
 }
 
+// Função para obter o caminho do Chrome
+function getChromePath() {
+    try {
+        // Tentar ler do arquivo .chrome-path
+        if (fs.existsSync('.chrome-path')) {
+            const chromePath = fs.readFileSync('.chrome-path', 'utf-8').trim();
+            console.log(`Using Chrome from .chrome-path: ${chromePath}`);
+            return chromePath;
+        }
+    } catch (error) {
+        console.error('Error reading .chrome-path:', error.message);
+    }
+
+    // Fallbacks
+    const envPath = process.env.CHROME_BIN || process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (envPath) {
+        console.log(`Using Chrome from environment: ${envPath}`);
+        return envPath;
+    }
+
+    // Path padrão para o Chrome for Testing
+    const defaultPath = path.join(process.cwd(), '.chrome', 'chrome-linux64', 'chrome');
+    if (fs.existsSync(defaultPath)) {
+        console.log(`Using Chrome from default path: ${defaultPath}`);
+        return defaultPath;
+    }
+
+    // Último recurso - deixar o Puppeteer tentar encontrar o Chrome
+    console.log('No Chrome path found, letting Puppeteer decide');
+    return undefined;
+}
+
 // Implementação real do scraping com técnicas avançadas anti-detecção
 async function scrapeAirbnb(url, step = 1) {
     let browser = null;
@@ -82,6 +114,9 @@ async function scrapeAirbnb(url, step = 1) {
             const cookiesEnabled = true;
             const localStorageEnabled = true;
 
+            // Obter o caminho do Chrome
+            const chromePath = getChromePath();
+
             // Iniciar o browser com configurações avançadas anti-detecção
             const launchOptions = {
                 args: [
@@ -98,7 +133,7 @@ async function scrapeAirbnb(url, step = 1) {
                     '--lang=pt-BR,pt',
                 ],
                 headless: 'new', // Usar headless: 'new' para ambiente Render
-                executablePath: process.env.CHROME_BIN || '/opt/render/project/.render/chrome/opt/google/chrome/chrome',
+                executablePath: chromePath,
                 ignoreHTTPSErrors: true,
                 defaultViewport: {
                     width: 1920,
