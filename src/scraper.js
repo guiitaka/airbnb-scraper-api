@@ -1188,7 +1188,7 @@ async function executeScrapingWithRetry(url, maxRetries = 3) {
 }
 
 // Main scraping function - simplified version without steps
-export async function scrapeAirbnb(url) {
+async function scrapeAirbnb(url) {
     try {
         console.log(`Iniciando scraping Airbnb para: ${url}`);
 
@@ -1205,4 +1205,9 @@ export async function scrapeAirbnb(url) {
             data: null
         };
     }
-} 
+}
+
+// Export the function using CommonJS syntax
+module.exports = {
+    scrapeAirbnb
+}; 
