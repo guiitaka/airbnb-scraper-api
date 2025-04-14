@@ -9,33 +9,34 @@ console.log('Iniciando configuração do ambiente de scraping...');
 // Função para configurar ambiente
 async function configureEnvironment() {
     try {
-        console.log('Verificando chrome-aws-lambda...');
+        console.log('Verificando instalação do Chromium...');
 
         // Verificar se o módulo foi instalado corretamente
         try {
-            const chromium = require('chrome-aws-lambda');
-            console.log('chrome-aws-lambda carregado com sucesso');
-
-            // Verificar versão
-            console.log('Versão do chromium: ' + (chromium.version || 'Não disponível'));
+            const chromium = require('@sparticuz/chromium');
+            console.log('Chromium carregado com sucesso');
+            console.log('Versão do chromium: ' + chromium.args[0] || 'Não disponível');
         } catch (error) {
-            console.error('Erro ao carregar chrome-aws-lambda:', error);
+            console.error('Erro ao carregar @sparticuz/chromium:', error);
+            console.log('Tentando instalar @sparticuz/chromium...');
+            execSync('npm install @sparticuz/chromium', { stdio: 'inherit' });
         }
 
-        // Verificar puppeteer-extra
+        // Verificar puppeteer-core
         try {
-            const puppeteerExtra = require('puppeteer-extra');
-            console.log('puppeteer-extra carregado com sucesso');
+            const puppeteer = require('puppeteer-core');
+            console.log('puppeteer-core carregado com sucesso');
         } catch (error) {
-            console.error('Erro ao carregar puppeteer-extra:', error);
+            console.error('Erro ao carregar puppeteer-core:', error);
+            console.log('Tentando instalar puppeteer-core...');
+            execSync('npm install puppeteer-core', { stdio: 'inherit' });
         }
 
-        // Verificar puppeteer-extra-plugin-stealth
-        try {
-            const stealthPlugin = require('puppeteer-extra-plugin-stealth');
-            console.log('puppeteer-extra-plugin-stealth carregado com sucesso');
-        } catch (error) {
-            console.error('Erro ao carregar puppeteer-extra-plugin-stealth:', error);
+        // Criar diretório de cache se não existir
+        const cacheDir = path.join(process.cwd(), '.cache');
+        if (!fs.existsSync(cacheDir)) {
+            console.log('Criando diretório de cache:', cacheDir);
+            fs.mkdirSync(cacheDir, { recursive: true });
         }
 
         console.log('Configuração concluída com sucesso!');
