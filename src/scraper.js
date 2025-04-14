@@ -62,32 +62,21 @@ function getModernUserAgent() {
 
 // Função para obter o caminho do Chrome
 function getChromePath() {
-    try {
-        // Tentar ler do arquivo .chrome-path
-        if (fs.existsSync('.chrome-path')) {
-            const chromePath = fs.readFileSync('.chrome-path', 'utf-8').trim();
-            console.log(`Using Chrome from .chrome-path: ${chromePath}`);
-            return chromePath;
-        }
-    } catch (error) {
-        console.error('Error reading .chrome-path:', error.message);
-    }
-
-    // Fallbacks
-    const envPath = process.env.CHROME_BIN || process.env.PUPPETEER_EXECUTABLE_PATH;
+    // Priorizar as variáveis de ambiente
+    const envPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_BIN;
     if (envPath) {
         console.log(`Using Chrome from environment: ${envPath}`);
         return envPath;
     }
 
-    // Path padrão para o Chrome for Testing
-    const defaultPath = path.join(process.cwd(), '.chrome', 'chrome-linux64', 'chrome');
-    if (fs.existsSync(defaultPath)) {
-        console.log(`Using Chrome from default path: ${defaultPath}`);
-        return defaultPath;
+    // No Render, o Chrome está instalado em:
+    const renderChromePath = '/usr/bin/google-chrome-stable';
+    if (fs.existsSync(renderChromePath)) {
+        console.log(`Using Chrome from Render default path: ${renderChromePath}`);
+        return renderChromePath;
     }
 
-    // Último recurso - deixar o Puppeteer tentar encontrar o Chrome
+    // Deixar o Puppeteer decidir
     console.log('No Chrome path found, letting Puppeteer decide');
     return undefined;
 }

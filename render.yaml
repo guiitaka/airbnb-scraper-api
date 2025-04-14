@@ -3,8 +3,8 @@ services:
     name: airbnb-scraper
     env: node
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: node src/index.js
+    buildCommand: npm install
+    startCommand: PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable npm start
     envVars:
       - key: PORT
         value: 10000
@@ -17,7 +17,7 @@ services:
       maxInstances: 1
     disk:
       name: chrome-cache
-      mountPath: /opt/render/project/.chrome
+      mountPath: /opt/render/project/.cache
       sizeGB: 1
     healthCheckPath: /
     buildFilter:
