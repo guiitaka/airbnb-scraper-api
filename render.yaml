@@ -3,20 +3,22 @@ services:
     name: airbnb-scraper
     env: node
     plan: free
-    buildCommand: npm install
-    startCommand: PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable npm start
+    buildCommand: ./render-build.sh
+    startCommand: npm start
     envVars:
       - key: PORT
         value: 10000
       - key: NODE_ENV
         value: production
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
+        value: false
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/.cache/puppeteer
     scaling:
       minInstances: 1
       maxInstances: 1
     disk:
-      name: chrome-cache
+      name: chromium-cache
       mountPath: /opt/render/project/.cache
       sizeGB: 1
     healthCheckPath: /
@@ -24,5 +26,4 @@ services:
       paths:
         - src/**
         - package.json
-        - package-lock.json
-        - build-chrome.js 
+        - package-lock.json 

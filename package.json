@@ -1,38 +1,32 @@
 {
   "name": "airbnb-scraper-api",
   "version": "1.0.0",
-  "description": "API para extrair dados de anúncios do Airbnb",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
     "dev": "nodemon src/index.js",
-    "test": "node test-api.js",
-    "check": "node check-puppeteer.js",
-    "build": "echo 'Build completed. No additional build steps required.'"
+    "build": "echo 'Simplified build process'",
+    "test-api": "node test-api.js"
   },
-  "keywords": [
-    "scraper",
-    "airbnb",
-    "api"
-  ],
-  "author": "Yallah",
+  "keywords": [],
+  "author": "",
   "license": "ISC",
+  "description": "API para scraping de anúncios do Airbnb",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
-    "node-fetch": "^2.6.12",
-    "puppeteer": "^21.1.1",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "puppeteer-extra-plugin-adblocker": "^2.13.6",
-    "puppeteer-extra-plugin-anonymize-ua": "^2.4.6",
-    "random-useragent": "^0.5.0"
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "puppeteer": "^19.7.0",
+    "@puppeteer/browsers": "^1.8.0",
+    "fs-extra": "^11.1.1",
+    "path": "^0.12.7",
+    "node-fetch": "^2.6.7"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.1.9"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=16"
   }
 }
