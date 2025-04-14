@@ -3,7 +3,7 @@ services:
     name: airbnb-scraper
     env: node
     plan: free
-    buildCommand: ./render-build.sh
+    buildCommand: chmod +x ./render-build.sh && ./render-build.sh
     startCommand: export PATH="${PATH}:/opt/render/project/.render/chrome/opt/google/chrome"; npm start
     envVars:
       - key: PORT

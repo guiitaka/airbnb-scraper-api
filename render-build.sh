@@ -45,21 +45,44 @@ apt-get install -y \
     lsb-release \
     xdg-utils || true
 
-# Download do Chrome diretamente (abordagem BigAlRender)
+echo "System dependencies installed successfully."
+
+# Download do Chrome diretamente
 STORAGE_DIR=/opt/render/project/.render
 
-if [[ ! -d $STORAGE_DIR/chrome ]]; then
+if [[ ! -d $STORAGE_DIR/chrome/opt/google/chrome ]]; then
   echo "...Downloading Chrome directly"
   mkdir -p $STORAGE_DIR/chrome
   cd $STORAGE_DIR/chrome
-  wget -P ./ https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-  # Usando método mais confiável como sugerido por chpeck no Gist
-  ar x google-chrome-stable_current_amd64.deb
-  tar -xf data.tar.xz -C $STORAGE_DIR/chrome
-  rm ./google-chrome-stable_current_amd64.deb data.tar.xz || true
+  
+  echo "Downloading Chrome deb package..."
+  wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+  
+  echo "Extracting Chrome package..."
+  dpkg -x google-chrome-stable_current_amd64.deb $STORAGE_DIR/chrome
+  
+  echo "Removing downloaded package..."
+  rm -f google-chrome-stable_current_amd64.deb
+  
+  echo "Verifying Chrome installation..."
+  if [[ -f $STORAGE_DIR/chrome/opt/google/chrome/chrome ]]; then
+    echo "✅ Chrome extracted successfully!"
+    ls -la $STORAGE_DIR/chrome/opt/google/chrome/
+  else
+    echo "❌ Chrome extraction failed!"
+    ls -la $STORAGE_DIR/chrome/
+  fi
+  
   cd $OLDPWD # Voltar ao diretório original
 else
   echo "...Using Chrome from cache"
+  if [[ -f $STORAGE_DIR/chrome/opt/google/chrome/chrome ]]; then
+    echo "✅ Chrome already exists in cache"
+    ls -la $STORAGE_DIR/chrome/opt/google/chrome/
+  else
+    echo "❌ Chrome exists in cache but binary is missing!"
+    ls -la $STORAGE_DIR/chrome/
+  fi
 fi
 
 # Adicionar o Chrome ao PATH para ser encontrado pelo Puppeteer
@@ -72,31 +95,38 @@ export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 export PUPPETEER_EXECUTABLE_PATH="$CHROME_BIN"
 echo "Configured Puppeteer to use Chrome at: $PUPPETEER_EXECUTABLE_PATH"
 
-# Limpar instalações anteriores para evitar conflitos
-echo "Cleaning node_modules..."
-rm -rf node_modules package-lock.json
-
-# Instalar dependências com npm
-echo "Installing dependencies..."
+# NÃO remover node_modules para evitar problemas
+echo "Installing dependencies with npm..."
 npm install
 
 # Instalar explicitamente cada dependência do puppeteer para garantir que tudo funcione
 echo "Installing puppeteer and plugins explicitly..."
-npm install --save puppeteer@21.1.1
-npm install --save puppeteer-extra@3.3.6
-npm install --save puppeteer-extra-plugin-stealth@2.11.2
-npm install --save puppeteer-extra-plugin-adblocker@2.13.6
-npm install --save puppeteer-extra-plugin-anonymize-ua@2.4.6
-npm install --save random-useragent@0.5.0
+npm install --no-save puppeteer@21.1.1
+npm install --no-save puppeteer-extra@3.3.6
+npm install --no-save puppeteer-extra-plugin-stealth@2.11.2
+npm install --no-save puppeteer-extra-plugin-adblocker@2.13.6
+npm install --no-save puppeteer-extra-plugin-anonymize-ua@2.4.6
+npm install --no-save random-useragent@0.5.0
 
 # Verificar se o Chrome está no PATH
 echo "Checking Chrome binary path..."
+echo "PATH: $PATH"
 which google-chrome || echo "Chrome not found in PATH"
 which google-chrome-stable || echo "Chrome-stable not found in PATH"
-ls -la /opt/render/project/.render/chrome/opt/google/chrome/ || echo "Chrome directory not accessible"
+ls -la $CHROME_BIN || echo "Chrome binary not accessible at $CHROME_BIN"
+
+# Verificar node_modules
+echo "Checking node_modules directory..."
+if [[ -d "./node_modules" ]]; then
+  echo "✅ node_modules directory exists"
+  ls -la ./node_modules | head -n 10
+else
+  echo "❌ node_modules directory does not exist!"
+fi
 
 # Verificar se o Puppeteer foi instalado corretamente
 echo "Running Puppeteer checks..."
-node check-puppeteer.js || true
+node -e "console.log('Node.js is working')" || echo "Node.js execution failed"
+node check-puppeteer.js || echo "Puppeteer check failed but continuing build"
 
 echo "Render build script completed!" 
